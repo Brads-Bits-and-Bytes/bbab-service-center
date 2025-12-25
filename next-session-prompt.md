@@ -224,4 +224,4 @@ Follow the exact same patterns as existing sub-pages:
 
 ## Starting Prompt for New Session
 
-"I'm continuing development of the bbab-core plugin (Brad's Workbench). Please read the `next-session-prompt.md` file in the plugin root - it contains the full handoff from the previous session including bugs to fix and new features to build. Start by fixing the sortable columns bug, then the Add Time Entry pre-population issue, then proceed to building the new Client Tasks and Roadmap Items dashboard boxes and sub-pages."
+"I'm continuing development of the bbab-core plugin (Brad's Workbench). Please read the `next-session-prompt.md` file in the plugin root - it contains the full handoff from the previous session including bugs to fix and new features to build. Start by fixing the sortable columns bug, then the Add Time Entry pre-population issue, then proceed to building the new Client Tasks and Roadmap Items dashboard boxes and sub-pages. Ask me any questions you might have as you go."

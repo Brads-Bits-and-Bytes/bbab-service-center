@@ -657,3 +657,98 @@ a.bbab-milestone-count:hover {
 .bbab-stat-highlight .bbab-stat-number {
     color: #996800;
 }
+
+/* ==========================================================================
+   Section Divider
+   ========================================================================== */
+
+.bbab-section-divider {
+    grid-column: 1 / -1; /* Span all columns */
+    display: flex;
+    align-items: center;
+    margin: 10px 0;
+    gap: 15px;
+}
+
+.bbab-section-divider::before,
+.bbab-section-divider::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid #c3c4c7;
+}
+
+.bbab-section-divider-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #787c82;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   Roadmap & Client Task Status Badges
+   ========================================================================== */
+
+/* Roadmap Item Statuses */
+.bbab-status-badge.status-idea {
+    background: #9b59b6;
+    color: #fff;
+}
+
+.bbab-status-badge.status-adr-in-progress {
+    background: #f39c12;
+    color: #fff;
+}
+
+.bbab-status-badge.status-proposed {
+    background: #3498db;
+    color: #fff;
+}
+
+.bbab-status-badge.status-approved {
+    background: #27ae60;
+    color: #fff;
+}
+
+.bbab-status-badge.status-declined {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* Priority Badges */
+.bbab-priority-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.bbab-priority-badge.priority-high {
+    background: #fadbd8;
+    color: #c0392b;
+}
+
+.bbab-priority-badge.priority-medium {
+    background: #fef9e7;
+    color: #d68910;
+}
+
+.bbab-priority-badge.priority-low {
+    background: #d5f5e3;
+    color: #1e8449;
+}
+
+/* Due Soon styling */
+.bbab-due-soon {
+    color: #996800;
+    font-weight: 500;
+}
+
+/* Client Task Status Badges */
+.bbab-status-badge.status-pending {
+    background: #72aee6;
+    color: #fff;
+}

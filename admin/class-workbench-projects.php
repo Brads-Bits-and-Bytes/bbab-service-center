@@ -322,6 +322,10 @@ class Projects_List_Table extends \WP_List_Table {
     /**
      * Get sortable columns.
      *
+     * Note: 'hours' sorting disabled due to performance - requires querying
+     * time_entries for every project which causes slow page loads.
+     * Would need denormalization (storing computed hours on Project) to fix.
+     *
      * @return array
      */
     public function get_sortable_columns() {
@@ -330,7 +334,6 @@ class Projects_List_Table extends \WP_List_Table {
             'project_name' => array( 'project_name', false ),
             'organization' => array( 'organization', false ),
             'status'       => array( 'project_status', false ),
-            'hours'        => array( 'hours', false ),
             'budget'       => array( 'budget', false ),
         );
     }
@@ -396,7 +399,11 @@ class Projects_List_Table extends \WP_List_Table {
 
         $projects = get_posts( $args );
 
-        // Sort by status priority, then by date.
+        // Check for user-requested sorting via column headers.
+        $orderby = isset( $_GET['orderby'] ) ? sanitize_text_field( $_GET['orderby'] ) : '';
+        $order   = isset( $_GET['order'] ) && strtolower( $_GET['order'] ) === 'desc' ? 'desc' : 'asc';
+
+        // Status order for sorting.
         $status_order = array(
             'Active'            => 1,
             'Waiting on Client' => 2,
@@ -405,19 +412,71 @@ class Projects_List_Table extends \WP_List_Table {
             'Cancelled'         => 5,
         );
 
-        usort( $projects, function( $a, $b ) use ( $status_order ) {
-            $status_a = get_post_meta( $a->ID, 'project_status', true );
-            $status_b = get_post_meta( $b->ID, 'project_status', true );
+        // Apply sorting based on user selection or default.
+        if ( ! empty( $orderby ) ) {
+            usort( $projects, function( $a, $b ) use ( $orderby, $order, $status_order ) {
+                $result = 0;
 
-            $order_a = isset( $status_order[ $status_a ] ) ? $status_order[ $status_a ] : 99;
-            $order_b = isset( $status_order[ $status_b ] ) ? $status_order[ $status_b ] : 99;
+                switch ( $orderby ) {
+                    case 'reference_number':
+                        $ref_a = get_post_meta( $a->ID, 'reference_number', true );
+                        $ref_b = get_post_meta( $b->ID, 'reference_number', true );
+                        $result = strcmp( $ref_a, $ref_b );
+                        break;
 
-            if ( $order_a !== $order_b ) {
-                return $order_a - $order_b;
-            }
+                    case 'project_name':
+                        $name_a = get_post_meta( $a->ID, 'project_name', true ) ?: $a->post_title;
+                        $name_b = get_post_meta( $b->ID, 'project_name', true ) ?: $b->post_title;
+                        $result = strcasecmp( $name_a, $name_b );
+                        break;
 
-            return strtotime( $b->post_date ) - strtotime( $a->post_date );
-        } );
+                    case 'organization':
+                        $org_a = get_post_meta( $a->ID, 'organization', true );
+                        $org_b = get_post_meta( $b->ID, 'organization', true );
+                        $org_a = is_array( $org_a ) ? reset( $org_a ) : $org_a;
+                        $org_b = is_array( $org_b ) ? reset( $org_b ) : $org_b;
+                        $short_a = $org_a ? get_post_meta( $org_a, 'organization_shortcode', true ) : '';
+                        $short_b = $org_b ? get_post_meta( $org_b, 'organization_shortcode', true ) : '';
+                        $result = strcasecmp( $short_a, $short_b );
+                        break;
+
+                    case 'project_status':
+                        $stat_a = get_post_meta( $a->ID, 'project_status', true );
+                        $stat_b = get_post_meta( $b->ID, 'project_status', true );
+                        $val_a = isset( $status_order[ $stat_a ] ) ? $status_order[ $stat_a ] : 99;
+                        $val_b = isset( $status_order[ $stat_b ] ) ? $status_order[ $stat_b ] : 99;
+                        $result = $val_a - $val_b;
+                        break;
+
+                    case 'budget':
+                        $budget_a = (float) get_post_meta( $a->ID, 'total_budget', true );
+                        $budget_b = (float) get_post_meta( $b->ID, 'total_budget', true );
+                        $result = $budget_a - $budget_b;
+                        break;
+
+                    default:
+                        $result = 0;
+                }
+
+                // Reverse for descending order.
+                return $order === 'desc' ? -$result : $result;
+            } );
+        } else {
+            // Default sort: by status priority, then by date (newest first).
+            usort( $projects, function( $a, $b ) use ( $status_order ) {
+                $status_a = get_post_meta( $a->ID, 'project_status', true );
+                $status_b = get_post_meta( $b->ID, 'project_status', true );
+
+                $order_a = isset( $status_order[ $status_a ] ) ? $status_order[ $status_a ] : 99;
+                $order_b = isset( $status_order[ $status_b ] ) ? $status_order[ $status_b ] : 99;
+
+                if ( $order_a !== $order_b ) {
+                    return $order_a - $order_b;
+                }
+
+                return strtotime( $b->post_date ) - strtotime( $a->post_date );
+            } );
+        }
 
         // Pagination.
         $per_page     = 20;

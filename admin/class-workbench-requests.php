@@ -278,6 +278,10 @@ class Requests_List_Table extends \WP_List_Table {
     /**
      * Get sortable columns.
      *
+     * Note: 'hours' sorting disabled due to performance - requires querying
+     * time_entries for every SR which causes 10-15 second page loads.
+     * Would need denormalization (storing computed hours on SR) to fix.
+     *
      * @return array
      */
     public function get_sortable_columns() {
@@ -287,7 +291,6 @@ class Requests_List_Table extends \WP_List_Table {
             'organization' => array( 'organization', false ),
             'status'       => array( 'request_status', false ),
             'priority'     => array( 'priority', false ),
-            'hours'        => array( 'hours', false ),
             'created'      => array( 'post_date', true ),
         );
     }
@@ -399,7 +402,19 @@ class Requests_List_Table extends \WP_List_Table {
             $requests = array_values( $requests ); // Re-index array.
         }
 
-        // Sort by status priority, then by date.
+        // Check for user-requested sorting via column headers.
+        $orderby = isset( $_GET['orderby'] ) ? sanitize_text_field( $_GET['orderby'] ) : '';
+        $order   = isset( $_GET['order'] ) && strtolower( $_GET['order'] ) === 'desc' ? 'desc' : 'asc';
+
+        // Priority order mapping for sorting.
+        $priority_order = array(
+            'Urgent' => 1,
+            'High'   => 2,
+            'Normal' => 3,
+            'Low'    => 4,
+        );
+
+        // Status order for default sorting.
         $status_order = array(
             'New'               => 1,
             'Acknowledged'      => 2,
@@ -410,19 +425,77 @@ class Requests_List_Table extends \WP_List_Table {
             'Cancelled'         => 7,
         );
 
-        usort( $requests, function( $a, $b ) use ( $status_order ) {
-            $status_a = get_post_meta( $a->ID, 'request_status', true );
-            $status_b = get_post_meta( $b->ID, 'request_status', true );
+        // Apply sorting based on user selection or default.
+        if ( ! empty( $orderby ) ) {
+            usort( $requests, function( $a, $b ) use ( $orderby, $order, $priority_order, $status_order ) {
+                $result = 0;
 
-            $order_a = isset( $status_order[ $status_a ] ) ? $status_order[ $status_a ] : 99;
-            $order_b = isset( $status_order[ $status_b ] ) ? $status_order[ $status_b ] : 99;
+                switch ( $orderby ) {
+                    case 'reference_number':
+                        $ref_a = get_post_meta( $a->ID, 'reference_number', true );
+                        $ref_b = get_post_meta( $b->ID, 'reference_number', true );
+                        $result = strcmp( $ref_a, $ref_b );
+                        break;
 
-            if ( $order_a !== $order_b ) {
-                return $order_a - $order_b;
-            }
+                    case 'subject':
+                        $subj_a = get_post_meta( $a->ID, 'subject', true ) ?: $a->post_title;
+                        $subj_b = get_post_meta( $b->ID, 'subject', true ) ?: $b->post_title;
+                        $result = strcasecmp( $subj_a, $subj_b );
+                        break;
 
-            return strtotime( $b->post_date ) - strtotime( $a->post_date );
-        } );
+                    case 'organization':
+                        $org_a = get_post_meta( $a->ID, 'organization', true );
+                        $org_b = get_post_meta( $b->ID, 'organization', true );
+                        $org_a = is_array( $org_a ) ? reset( $org_a ) : $org_a;
+                        $org_b = is_array( $org_b ) ? reset( $org_b ) : $org_b;
+                        $name_a = $org_a ? get_post_meta( $org_a, 'organization_shortcode', true ) : '';
+                        $name_b = $org_b ? get_post_meta( $org_b, 'organization_shortcode', true ) : '';
+                        $result = strcasecmp( $name_a, $name_b );
+                        break;
+
+                    case 'request_status':
+                        $stat_a = get_post_meta( $a->ID, 'request_status', true );
+                        $stat_b = get_post_meta( $b->ID, 'request_status', true );
+                        $val_a = isset( $status_order[ $stat_a ] ) ? $status_order[ $stat_a ] : 99;
+                        $val_b = isset( $status_order[ $stat_b ] ) ? $status_order[ $stat_b ] : 99;
+                        $result = $val_a - $val_b;
+                        break;
+
+                    case 'priority':
+                        $prio_a = get_post_meta( $a->ID, 'priority', true );
+                        $prio_b = get_post_meta( $b->ID, 'priority', true );
+                        $val_a = isset( $priority_order[ $prio_a ] ) ? $priority_order[ $prio_a ] : 99;
+                        $val_b = isset( $priority_order[ $prio_b ] ) ? $priority_order[ $prio_b ] : 99;
+                        $result = $val_a - $val_b;
+                        break;
+
+                    case 'post_date':
+                        $result = strtotime( $a->post_date ) - strtotime( $b->post_date );
+                        break;
+
+                    default:
+                        $result = 0;
+                }
+
+                // Reverse for descending order.
+                return $order === 'desc' ? -$result : $result;
+            } );
+        } else {
+            // Default sort: by status priority, then by date (newest first).
+            usort( $requests, function( $a, $b ) use ( $status_order ) {
+                $status_a = get_post_meta( $a->ID, 'request_status', true );
+                $status_b = get_post_meta( $b->ID, 'request_status', true );
+
+                $order_a = isset( $status_order[ $status_a ] ) ? $status_order[ $status_a ] : 99;
+                $order_b = isset( $status_order[ $status_b ] ) ? $status_order[ $status_b ] : 99;
+
+                if ( $order_a !== $order_b ) {
+                    return $order_a - $order_b;
+                }
+
+                return strtotime( $b->post_date ) - strtotime( $a->post_date );
+            } );
+        }
 
         // Pagination.
         $per_page     = 20;
