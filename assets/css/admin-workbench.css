@@ -1,0 +1,534 @@
+/**
+ * Brad's Workbench Admin Styles
+ *
+ * Ported from admin/css/workbench.css
+ *
+ * @package BBAB\ServiceCenter
+ * @since   2.0.0
+ */
+
+/* ==========================================================================
+   Layout: CSS Grid for Dashboard Boxes
+   ========================================================================== */
+
+.bbab-workbench-wrap {
+    max-width: 1400px;
+    margin: 20px 20px 20px 0;
+}
+
+.bbab-workbench-wrap > h1 {
+    margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   Simulation Controls (Clean inline version)
+   ========================================================================== */
+
+.bbab-simulation-controls {
+    background: #f0f0f1;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+}
+
+.bbab-simulation-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.bbab-simulation-form label {
+    font-weight: 500;
+    color: #1d2327;
+}
+
+.bbab-simulation-form select {
+    min-width: 250px;
+    max-width: 400px;
+}
+
+.bbab-simulation-active {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #1d2327;
+}
+
+.bbab-simulation-active strong {
+    color: #2271b1;
+}
+
+.bbab-sim-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background: #00a32a;
+    border-radius: 50%;
+    animation: bbab-pulse 2s infinite;
+}
+
+@keyframes bbab-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.bbab-btn-stop {
+    color: #b32d2e !important;
+    border-color: #b32d2e !important;
+}
+
+.bbab-btn-stop:hover {
+    background: #b32d2e !important;
+    color: #fff !important;
+}
+
+@media screen and (max-width: 782px) {
+    .bbab-simulation-form {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .bbab-simulation-form select {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+/* ==========================================================================
+   Dashboard Grid - 3 columns on large screens
+   ========================================================================== */
+
+.bbab-workbench-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+/* 2 columns on medium screens */
+@media screen and (max-width: 1200px) {
+    .bbab-workbench-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* 1 column on small screens */
+@media screen and (max-width: 782px) {
+    .bbab-workbench-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bbab-workbench-wrap {
+        margin-right: 10px;
+    }
+}
+
+/* ==========================================================================
+   Dashboard Boxes
+   ========================================================================== */
+
+.bbab-workbench-box,
+.bbab-box {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.bbab-workbench-box:hover,
+.bbab-box:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.bbab-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid #c3c4c7;
+    background: #f6f7f7;
+}
+
+.bbab-box-header h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.bbab-box-count {
+    font-size: 12px;
+    color: #787c82;
+}
+
+.bbab-box-content {
+    padding: 0;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.bbab-box-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 10px 15px;
+    border-top: 1px solid #c3c4c7;
+    background: #f6f7f7;
+}
+
+.bbab-box-footer .button {
+    margin: 0;
+}
+
+.bbab-no-items {
+    padding: 20px 15px;
+    text-align: center;
+    color: #787c82;
+    margin: 0;
+}
+
+/* ==========================================================================
+   Workbench Tables
+   ========================================================================== */
+
+.bbab-workbench-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.bbab-workbench-table th {
+    background: #f6f7f7;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #1d2327;
+    border-bottom: 1px solid #c3c4c7;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.bbab-workbench-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f1;
+    vertical-align: middle;
+}
+
+.bbab-workbench-table tr:last-child td {
+    border-bottom: none;
+}
+
+.bbab-workbench-table tr:hover td {
+    background: #f9fafb;
+}
+
+.bbab-col-center {
+    text-align: center;
+}
+
+.bbab-col-right {
+    text-align: right;
+}
+
+/* ==========================================================================
+   Reference Links
+   ========================================================================== */
+
+.bbab-ref-link {
+    font-family: monospace;
+    font-size: 12px;
+    color: #2271b1;
+    text-decoration: none;
+}
+
+.bbab-ref-link:hover {
+    color: #135e96;
+    text-decoration: underline;
+}
+
+/* ==========================================================================
+   Organization Badge
+   ========================================================================== */
+
+.bbab-org-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #f0f0f1;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #50575e;
+}
+
+/* ==========================================================================
+   Status Badges
+   ========================================================================== */
+
+.bbab-status-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+/* Service Request Statuses */
+.bbab-status-badge.status-new {
+    background: #d63638;
+    color: #fff;
+}
+
+.bbab-status-badge.status-acknowledged {
+    background: #dba617;
+    color: #fff;
+}
+
+.bbab-status-badge.status-in-progress,
+.bbab-status-badge.status-active {
+    background: #00a32a;
+    color: #fff;
+}
+
+.bbab-status-badge.status-waiting-on-client {
+    background: #72aee6;
+    color: #fff;
+}
+
+.bbab-status-badge.status-on-hold {
+    background: #787c82;
+    color: #fff;
+}
+
+.bbab-status-badge.status-completed,
+.bbab-status-badge.status-paid {
+    background: #4ab866;
+    color: #fff;
+}
+
+.bbab-status-badge.status-cancelled {
+    background: #c3c4c7;
+    color: #50575e;
+}
+
+/* Invoice Statuses */
+.bbab-status-badge.status-draft {
+    background: #c3c4c7;
+    color: #50575e;
+}
+
+.bbab-status-badge.status-pending {
+    background: #dba617;
+    color: #fff;
+}
+
+.bbab-status-badge.status-partial {
+    background: #72aee6;
+    color: #fff;
+}
+
+.bbab-status-badge.status-overdue {
+    background: #d63638;
+    color: #fff;
+}
+
+/* Roadmap Item Statuses */
+.bbab-status-badge.status-idea {
+    background: #9b59b6;
+    color: #fff;
+}
+
+.bbab-status-badge.status-adr-in-progress {
+    background: #f39c12;
+    color: #fff;
+}
+
+.bbab-status-badge.status-proposed {
+    background: #3498db;
+    color: #fff;
+}
+
+.bbab-status-badge.status-approved {
+    background: #27ae60;
+    color: #fff;
+}
+
+.bbab-status-badge.status-declined {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* ==========================================================================
+   Priority Badges
+   ========================================================================== */
+
+.bbab-priority-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.bbab-priority-badge.priority-high {
+    background: #fadbd8;
+    color: #c0392b;
+}
+
+.bbab-priority-badge.priority-medium {
+    background: #fef9e7;
+    color: #d68910;
+}
+
+.bbab-priority-badge.priority-low {
+    background: #d5f5e3;
+    color: #1e8449;
+}
+
+/* ==========================================================================
+   Due Date Styling
+   ========================================================================== */
+
+.bbab-overdue {
+    color: #d63638;
+    font-weight: 500;
+}
+
+.bbab-due-soon {
+    color: #996800;
+    font-weight: 500;
+}
+
+/* ==========================================================================
+   Utility Classes
+   ========================================================================== */
+
+.bbab-text-muted {
+    color: #787c82;
+}
+
+.bbab-text-small {
+    font-size: 12px;
+}
+
+/* ==========================================================================
+   Count Links
+   ========================================================================== */
+
+.bbab-workbench-table a {
+    color: #2271b1;
+    text-decoration: none;
+}
+
+.bbab-workbench-table a:hover {
+    color: #135e96;
+    text-decoration: underline;
+}
+
+/* ==========================================================================
+   Row Divider (between top 3 and bottom 2 boxes)
+   ========================================================================== */
+
+.bbab-row-divider {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    margin: 10px 0;
+    gap: 15px;
+}
+
+.bbab-row-divider::before,
+.bbab-row-divider::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid #c3c4c7;
+}
+
+.bbab-divider-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #787c82;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+/* ==========================================================================
+   Visual Polish
+   ========================================================================== */
+
+/* Page header styling */
+.bbab-workbench-wrap > h1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 23px;
+    font-weight: 400;
+    color: #1d2327;
+}
+
+/* Box header gradient */
+.bbab-box-header {
+    background: linear-gradient(to bottom, #fafafa, #f0f0f1);
+}
+
+/* Box hover effect */
+.bbab-workbench-box {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.bbab-workbench-box:hover {
+    transform: translateY(-1px);
+}
+
+/* Footer gradient */
+.bbab-box-footer {
+    background: linear-gradient(to bottom, #f6f7f7, #ebebeb);
+}
+
+/* Primary button styling (use blue instead of purple) */
+.bbab-box-footer .button-primary {
+    background: #2271b1;
+    border-color: #2271b1;
+}
+
+.bbab-box-footer .button-primary:hover {
+    background: #135e96;
+    border-color: #135e96;
+}
+
+/* Table alternating rows */
+.bbab-workbench-table tbody tr:nth-child(even) td {
+    background: #fafafa;
+}
+
+.bbab-workbench-table tbody tr:nth-child(even):hover td {
+    background: #f5f5f5;
+}
+
+/* Count badges in headers */
+.bbab-box-count {
+    background: #2271b1;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 10px;
+}
+
+/* Simulation controls polish */
+.bbab-simulation-controls {
+    background: linear-gradient(to bottom, #f6f7f7, #ebebeb);
+    border-radius: 4px;
+}
+
+/* Empty state styling */
+.bbab-no-items {
+    font-style: italic;
+}

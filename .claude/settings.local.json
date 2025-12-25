@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(composer dump-autoload:*)",
+      "Bash(php -l:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(findstr:*)"
     ]
   }
 }
