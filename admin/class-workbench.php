@@ -30,6 +30,41 @@ class Workbench {
     private $cache;
 
     /**
+     * Projects sub-page instance.
+     *
+     * @var Workbench_Projects
+     */
+    private $projects_page;
+
+    /**
+     * Requests sub-page instance.
+     *
+     * @var Workbench_Requests
+     */
+    private $requests_page;
+
+    /**
+     * Invoices sub-page instance.
+     *
+     * @var Workbench_Invoices
+     */
+    private $invoices_page;
+
+    /**
+     * Tasks sub-page instance.
+     *
+     * @var Workbench_Tasks
+     */
+    private $tasks_page;
+
+    /**
+     * Roadmap sub-page instance.
+     *
+     * @var Workbench_Roadmap
+     */
+    private $roadmap_page;
+
+    /**
      * Status sort order for Service Requests.
      * Lower number = higher priority in display.
      *
@@ -72,7 +107,12 @@ class Workbench {
      * @since 1.0.0
      */
     public function __construct() {
-        $this->cache = new Cache();
+        $this->cache         = new Cache();
+        $this->projects_page = new Workbench_Projects();
+        $this->requests_page = new Workbench_Requests();
+        $this->invoices_page = new Workbench_Invoices();
+        $this->tasks_page    = new Workbench_Tasks();
+        $this->roadmap_page  = new Workbench_Roadmap();
     }
 
     /**
@@ -103,11 +143,65 @@ class Workbench {
             2 // Position: right below Dashboard.
         );
 
-        // Sub-pages will be added in Phase 3.
-        // Placeholder comments for future sub-pages:
-        // - Projects (bbab-projects)
-        // - Service Requests (bbab-requests)
-        // - Invoices (bbab-invoices)
+        // Rename the auto-created submenu item.
+        add_submenu_page(
+            'bbab-workbench',
+            __( "Brad's Workbench", 'bbab-core' ),
+            __( 'Dashboard', 'bbab-core' ),
+            'manage_options',
+            'bbab-workbench',
+            array( $this, 'render_main_page' )
+        );
+
+        // Projects sub-page.
+        add_submenu_page(
+            'bbab-workbench',
+            __( 'Projects', 'bbab-core' ),
+            __( 'Projects', 'bbab-core' ),
+            'manage_options',
+            'bbab-projects',
+            array( $this->projects_page, 'render_page' )
+        );
+
+        // Service Requests sub-page.
+        add_submenu_page(
+            'bbab-workbench',
+            __( 'Service Requests', 'bbab-core' ),
+            __( 'Service Requests', 'bbab-core' ),
+            'manage_options',
+            'bbab-requests',
+            array( $this->requests_page, 'render_page' )
+        );
+
+        // Invoices sub-page.
+        add_submenu_page(
+            'bbab-workbench',
+            __( 'Invoices', 'bbab-core' ),
+            __( 'Invoices', 'bbab-core' ),
+            'manage_options',
+            'bbab-invoices',
+            array( $this->invoices_page, 'render_page' )
+        );
+
+        // Client Tasks sub-page.
+        add_submenu_page(
+            'bbab-workbench',
+            __( 'Client Tasks', 'bbab-core' ),
+            __( 'Client Tasks', 'bbab-core' ),
+            'manage_options',
+            'bbab-tasks',
+            array( $this->tasks_page, 'render_page' )
+        );
+
+        // Roadmap Items sub-page.
+        add_submenu_page(
+            'bbab-workbench',
+            __( 'Roadmap Items', 'bbab-core' ),
+            __( 'Roadmap Items', 'bbab-core' ),
+            'manage_options',
+            'bbab-roadmap',
+            array( $this->roadmap_page, 'render_page' )
+        );
     }
 
     /**
@@ -126,11 +220,15 @@ class Workbench {
         $service_requests = $this->get_open_service_requests( 10 );
         $projects         = $this->get_active_projects( 10 );
         $invoices         = $this->get_pending_invoices( 10 );
+        $client_tasks     = $this->get_pending_client_tasks( 10 );
+        $roadmap_items    = $this->get_active_roadmap_items( 10 );
 
         // Get total counts (for "View All" badges).
         $sr_total_count      = $this->get_open_service_request_count();
         $project_total_count = $this->get_active_project_count();
         $invoice_total_count = $this->get_pending_invoice_count();
+        $task_total_count    = $this->get_pending_client_task_count();
+        $roadmap_total_count = $this->get_active_roadmap_item_count();
 
         // Load the template.
         include BBAB_CORE_PATH . 'admin/partials/workbench-main.php';
@@ -653,5 +751,237 @@ class Workbench {
             ),
             admin_url( 'edit.php' )
         );
+    }
+
+    /**
+     * Get pending client tasks for display.
+     *
+     * @since 1.0.0
+     * @param int $limit Number of items to return.
+     * @return array
+     */
+    public function get_pending_client_tasks( $limit = 10 ) {
+        $cache_key = 'pending_tasks_' . $limit;
+        $cached    = $this->cache->get( $cache_key );
+
+        if ( false !== $cached ) {
+            return $cached;
+        }
+
+        $results = get_posts( array(
+            'post_type'      => 'client_task',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+                array(
+                    'key'     => 'task_status',
+                    'value'   => 'Pending',
+                    'compare' => '=',
+                ),
+            ),
+        ) );
+
+        // Sort by due date (soonest first, then overdue, then no date).
+        usort( $results, function( $a, $b ) {
+            $due_a = get_post_meta( $a->ID, 'due_date', true );
+            $due_b = get_post_meta( $b->ID, 'due_date', true );
+
+            // If neither has a due date, sort by post date.
+            if ( empty( $due_a ) && empty( $due_b ) ) {
+                return strtotime( $b->post_date ) - strtotime( $a->post_date );
+            }
+
+            // Items with due date come before items without.
+            if ( empty( $due_a ) ) {
+                return 1;
+            }
+            if ( empty( $due_b ) ) {
+                return -1;
+            }
+
+            // Sort by due date (earliest first).
+            return strtotime( $due_a ) - strtotime( $due_b );
+        } );
+
+        $results = array_slice( $results, 0, $limit );
+
+        $this->cache->set( $cache_key, $results, HOUR_IN_SECONDS );
+
+        return $results;
+    }
+
+    /**
+     * Get total count of pending client tasks.
+     *
+     * @since 1.0.0
+     * @return int
+     */
+    public function get_pending_client_task_count() {
+        $cache_key = 'pending_tasks_count';
+        $cached    = $this->cache->get( $cache_key );
+
+        if ( false !== $cached ) {
+            return $cached;
+        }
+
+        $results = get_posts( array(
+            'post_type'      => 'client_task',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_query'     => array(
+                array(
+                    'key'     => 'task_status',
+                    'value'   => 'Pending',
+                    'compare' => '=',
+                ),
+            ),
+        ) );
+
+        $count = count( $results );
+        $this->cache->set( $cache_key, $count, HOUR_IN_SECONDS );
+
+        return $count;
+    }
+
+    /**
+     * Get organization shortcode for a client task.
+     *
+     * Client tasks use Advanced Relationship which stores data in wp_podsrel
+     * table, not postmeta. Need to query directly.
+     *
+     * @since 1.0.0
+     * @param int $task_id Task ID.
+     * @return string Organization shortcode or empty string.
+     */
+    public function get_task_org_shortcode( $task_id ) {
+        global $wpdb;
+
+        // Field ID 1320 is the 'organization' field for client_task.
+        // Query wp_podsrel table directly since Advanced Relationship.
+        $org_id = $wpdb->get_var( $wpdb->prepare(
+            "SELECT related_item_id FROM {$wpdb->prefix}podsrel
+             WHERE item_id = %d AND field_id = 1320",
+            $task_id
+        ) );
+
+        if ( empty( $org_id ) ) {
+            return '';
+        }
+
+        $shortcode = get_post_meta( $org_id, 'organization_shortcode', true );
+
+        return $shortcode ? $shortcode : '';
+    }
+
+    /**
+     * Get active roadmap items for display.
+     *
+     * @since 1.0.0
+     * @param int $limit Number of items to return.
+     * @return array
+     */
+    public function get_active_roadmap_items( $limit = 10 ) {
+        $cache_key = 'active_roadmap_' . $limit;
+        $cached    = $this->cache->get( $cache_key );
+
+        if ( false !== $cached ) {
+            return $cached;
+        }
+
+        // Active statuses: Idea, ADR In Progress, Proposed.
+        $results = get_posts( array(
+            'post_type'      => 'roadmap_item',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+                array(
+                    'key'     => 'roadmap_status',
+                    'value'   => array( 'Idea', 'ADR In Progress', 'Proposed' ),
+                    'compare' => 'IN',
+                ),
+            ),
+        ) );
+
+        // Priority order for sorting.
+        $priority_order = array(
+            'High'   => 1,
+            'Medium' => 2,
+            'Low'    => 3,
+        );
+
+        // Status order for sorting.
+        $status_order = array(
+            'Proposed'        => 1, // Ready for review first.
+            'ADR In Progress' => 2,
+            'Idea'            => 3,
+        );
+
+        // Sort by status priority, then by priority level, then by date.
+        usort( $results, function( $a, $b ) use ( $status_order, $priority_order ) {
+            $status_a = get_post_meta( $a->ID, 'roadmap_status', true );
+            $status_b = get_post_meta( $b->ID, 'roadmap_status', true );
+
+            $s_order_a = isset( $status_order[ $status_a ] ) ? $status_order[ $status_a ] : 99;
+            $s_order_b = isset( $status_order[ $status_b ] ) ? $status_order[ $status_b ] : 99;
+
+            if ( $s_order_a !== $s_order_b ) {
+                return $s_order_a - $s_order_b;
+            }
+
+            // Same status, sort by priority.
+            $prio_a = get_post_meta( $a->ID, 'priority', true );
+            $prio_b = get_post_meta( $b->ID, 'priority', true );
+
+            $p_order_a = isset( $priority_order[ $prio_a ] ) ? $priority_order[ $prio_a ] : 99;
+            $p_order_b = isset( $priority_order[ $prio_b ] ) ? $priority_order[ $prio_b ] : 99;
+
+            if ( $p_order_a !== $p_order_b ) {
+                return $p_order_a - $p_order_b;
+            }
+
+            // Same priority, sort by date (newest first).
+            return strtotime( $b->post_date ) - strtotime( $a->post_date );
+        } );
+
+        $results = array_slice( $results, 0, $limit );
+
+        $this->cache->set( $cache_key, $results, HOUR_IN_SECONDS );
+
+        return $results;
+    }
+
+    /**
+     * Get total count of active roadmap items.
+     *
+     * @since 1.0.0
+     * @return int
+     */
+    public function get_active_roadmap_item_count() {
+        $cache_key = 'active_roadmap_count';
+        $cached    = $this->cache->get( $cache_key );
+
+        if ( false !== $cached ) {
+            return $cached;
+        }
+
+        $results = get_posts( array(
+            'post_type'      => 'roadmap_item',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_query'     => array(
+                array(
+                    'key'     => 'roadmap_status',
+                    'value'   => array( 'Idea', 'ADR In Progress', 'Proposed' ),
+                    'compare' => 'IN',
+                ),
+            ),
+        ) );
+
+        $count = count( $results );
+        $this->cache->set( $cache_key, $count, HOUR_IN_SECONDS );
+
+        return $count;
     }
 }

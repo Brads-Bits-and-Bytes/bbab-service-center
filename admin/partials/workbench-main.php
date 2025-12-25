@@ -3,12 +3,16 @@
  * Main Workbench Dashboard Template
  *
  * Variables available:
- * - $service_requests    Array of open service request posts
- * - $projects            Array of active project posts
- * - $invoices            Array of pending invoice posts
- * - $sr_total_count      Total count of open service requests
- * - $project_total_count Total count of active projects
- * - $invoice_total_count Total count of pending invoices
+ * - $service_requests      Array of open service request posts
+ * - $projects              Array of active project posts
+ * - $invoices              Array of pending invoice posts
+ * - $sr_total_count        Total count of open service requests
+ * - $project_total_count   Total count of active projects
+ * - $invoice_total_count   Total count of pending invoices
+ * - $client_tasks          Array of pending client task posts
+ * - $roadmap_items         Array of active roadmap item posts
+ * - $task_total_count      Total count of pending client tasks
+ * - $roadmap_total_count   Total count of active roadmap items
  *
  * @package BBAB\Core\Admin
  * @since   1.0.0
@@ -85,9 +89,15 @@ if ( ! defined( 'WPINC' ) ) {
                     </ul>
                 <?php endif; ?>
             </div>
-            <div class="bbab-box-footer">
+            <div class="bbab-box-footer bbab-box-footer-3">
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=bbab-requests' ) ); ?>" class="button button-primary">
+                    <?php esc_html_e( 'Requests Hub', 'bbab-core' ); ?>
+                </a>
                 <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=service_request' ) ); ?>" class="button">
-                    <?php esc_html_e( 'View All', 'bbab-core' ); ?>
+                    <?php esc_html_e( 'WP List', 'bbab-core' ); ?>
+                </a>
+                <a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=service_request' ) ); ?>" class="button">
+                    <span class="dashicons dashicons-plus-alt2"></span>
                 </a>
             </div>
         </div>
@@ -152,9 +162,15 @@ if ( ! defined( 'WPINC' ) ) {
                     </ul>
                 <?php endif; ?>
             </div>
-            <div class="bbab-box-footer">
+            <div class="bbab-box-footer bbab-box-footer-3">
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=bbab-projects' ) ); ?>" class="button button-primary">
+                    <?php esc_html_e( 'Projects Hub', 'bbab-core' ); ?>
+                </a>
                 <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=project' ) ); ?>" class="button">
-                    <?php esc_html_e( 'View All', 'bbab-core' ); ?>
+                    <?php esc_html_e( 'WP List', 'bbab-core' ); ?>
+                </a>
+                <a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=project' ) ); ?>" class="button">
+                    <span class="dashicons dashicons-plus-alt2"></span>
                 </a>
             </div>
         </div>
@@ -224,9 +240,163 @@ if ( ! defined( 'WPINC' ) ) {
                     </ul>
                 <?php endif; ?>
             </div>
-            <div class="bbab-box-footer">
+            <div class="bbab-box-footer bbab-box-footer-3">
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=bbab-invoices' ) ); ?>" class="button button-primary">
+                    <?php esc_html_e( 'Invoices Hub', 'bbab-core' ); ?>
+                </a>
                 <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=invoice' ) ); ?>" class="button">
-                    <?php esc_html_e( 'View All', 'bbab-core' ); ?>
+                    <?php esc_html_e( 'WP List', 'bbab-core' ); ?>
+                </a>
+                <a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=invoice' ) ); ?>" class="button">
+                    <span class="dashicons dashicons-plus-alt2"></span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Section Divider -->
+        <div class="bbab-section-divider">
+            <span class="bbab-section-divider-label"><?php esc_html_e( 'Planning & Client', 'bbab-core' ); ?></span>
+        </div>
+
+        <!-- Roadmap Items Box -->
+        <div class="bbab-box" data-box-type="roadmap-items">
+            <div class="bbab-box-header">
+                <h2 class="bbab-box-title">
+                    <span class="dashicons dashicons-chart-line"></span>
+                    <?php esc_html_e( 'Active Roadmap Items', 'bbab-core' ); ?>
+                </h2>
+                <span class="bbab-box-count <?php echo $roadmap_total_count === 0 ? 'count-zero' : ''; ?>">
+                    <?php echo esc_html( $roadmap_total_count ); ?>
+                </span>
+            </div>
+            <div class="bbab-box-content">
+                <?php if ( empty( $roadmap_items ) ) : ?>
+                    <div class="bbab-empty-state">
+                        <span class="dashicons dashicons-chart-line"></span>
+                        <p><?php esc_html_e( 'No active roadmap items at the moment.', 'bbab-core' ); ?></p>
+                    </div>
+                <?php else : ?>
+                    <ul class="bbab-item-list">
+                        <?php foreach ( $roadmap_items as $item ) :
+                            $status      = get_post_meta( $item->ID, 'roadmap_status', true );
+                            $priority    = get_post_meta( $item->ID, 'priority', true );
+                            $description = get_post_meta( $item->ID, 'description', true );
+                            $org_code    = $this->get_org_shortcode( $item->ID );
+                            $edit_link   = $this->get_edit_link( $item->ID );
+
+                            // Use post title as display name.
+                            $display_name = $item->post_title;
+                            $name_display = mb_strlen( $display_name ) > 35 ? mb_substr( $display_name, 0, 35 ) . '...' : $display_name;
+                        ?>
+                            <li class="bbab-item">
+                                <span class="bbab-item-title">
+                                    <a href="<?php echo esc_url( $edit_link ); ?>" title="<?php echo esc_attr( $display_name ); ?>">
+                                        <?php echo esc_html( $name_display ); ?>
+                                    </a>
+                                </span>
+                                <?php if ( $org_code ) : ?>
+                                    <span class="bbab-item-org"><?php echo esc_html( $org_code ); ?></span>
+                                <?php endif; ?>
+                                <?php if ( $priority ) : ?>
+                                    <span class="bbab-priority-badge priority-<?php echo esc_attr( strtolower( $priority ) ); ?>">
+                                        <?php echo esc_html( $priority ); ?>
+                                    </span>
+                                <?php endif; ?>
+                                <?php echo $this->render_status_badge( $status, 'roadmap' ); ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+            <div class="bbab-box-footer bbab-box-footer-3">
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=bbab-roadmap' ) ); ?>" class="button button-primary">
+                    <?php esc_html_e( 'Roadmap Hub', 'bbab-core' ); ?>
+                </a>
+                <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=roadmap_item' ) ); ?>" class="button">
+                    <?php esc_html_e( 'WP List', 'bbab-core' ); ?>
+                </a>
+                <a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=roadmap_item' ) ); ?>" class="button">
+                    <span class="dashicons dashicons-plus-alt2"></span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Client Tasks Box -->
+        <div class="bbab-box" data-box-type="client-tasks">
+            <div class="bbab-box-header">
+                <h2 class="bbab-box-title">
+                    <span class="dashicons dashicons-clipboard"></span>
+                    <?php esc_html_e( 'Pending Client Tasks', 'bbab-core' ); ?>
+                </h2>
+                <span class="bbab-box-count <?php echo $task_total_count === 0 ? 'count-zero' : ''; ?>">
+                    <?php echo esc_html( $task_total_count ); ?>
+                </span>
+            </div>
+            <div class="bbab-box-content">
+                <?php if ( empty( $client_tasks ) ) : ?>
+                    <div class="bbab-empty-state">
+                        <span class="dashicons dashicons-yes-alt"></span>
+                        <p><?php esc_html_e( 'No pending tasks for clients.', 'bbab-core' ); ?></p>
+                    </div>
+                <?php else : ?>
+                    <ul class="bbab-item-list">
+                        <?php foreach ( $client_tasks as $task ) :
+                            $description = get_post_meta( $task->ID, 'task_description', true );
+                            $due_date    = get_post_meta( $task->ID, 'due_date', true );
+                            $status      = get_post_meta( $task->ID, 'task_status', true );
+                            $org_code    = $this->get_task_org_shortcode( $task->ID );
+                            $edit_link   = $this->get_edit_link( $task->ID );
+
+                            // Use task_description or post title.
+                            $display_name = ! empty( $description ) ? $description : $task->post_title;
+                            $name_display = mb_strlen( $display_name ) > 40 ? mb_substr( $display_name, 0, 40 ) . '...' : $display_name;
+
+                            // Format due date and check urgency.
+                            $due_display = '';
+                            $due_class   = '';
+                            if ( $due_date ) {
+                                $due_timestamp = strtotime( $due_date );
+                                $today         = strtotime( 'today' );
+                                $days_until    = floor( ( $due_timestamp - $today ) / DAY_IN_SECONDS );
+
+                                $due_display = date_i18n( 'M j', $due_timestamp );
+
+                                if ( $days_until < 0 ) {
+                                    $due_class = 'bbab-overdue';
+                                } elseif ( $days_until <= 3 ) {
+                                    $due_class = 'bbab-due-soon';
+                                }
+                            }
+                        ?>
+                            <li class="bbab-item">
+                                <span class="bbab-item-title">
+                                    <a href="<?php echo esc_url( $edit_link ); ?>" title="<?php echo esc_attr( $display_name ); ?>">
+                                        <?php echo esc_html( $name_display ); ?>
+                                    </a>
+                                </span>
+                                <?php if ( $org_code ) : ?>
+                                    <span class="bbab-item-org"><?php echo esc_html( $org_code ); ?></span>
+                                <?php endif; ?>
+                                <?php if ( $due_display ) : ?>
+                                    <span class="bbab-due-date <?php echo esc_attr( $due_class ); ?>">
+                                        <?php echo esc_html( $due_display ); ?>
+                                    </span>
+                                <?php endif; ?>
+                                <?php echo $this->render_status_badge( $status, 'task' ); ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+            <div class="bbab-box-footer bbab-box-footer-3">
+                <a href="<?php echo esc_url( admin_url( 'admin.php?page=bbab-tasks' ) ); ?>" class="button button-primary">
+                    <?php esc_html_e( 'Tasks Hub', 'bbab-core' ); ?>
+                </a>
+                <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=client_task' ) ); ?>" class="button">
+                    <?php esc_html_e( 'WP List', 'bbab-core' ); ?>
+                </a>
+                <a href="<?php echo esc_url( admin_url( 'post-new.php?post_type=client_task' ) ); ?>" class="button">
+                    <span class="dashicons dashicons-plus-alt2"></span>
                 </a>
             </div>
         </div>
