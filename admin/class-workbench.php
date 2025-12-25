@@ -216,6 +216,9 @@ class Workbench {
             wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'bbab-core' ) );
         }
 
+        // Handle simulation start/stop.
+        $this->handle_simulation_actions();
+
         // Get data for the boxes.
         $service_requests = $this->get_open_service_requests( 10 );
         $projects         = $this->get_active_projects( 10 );
@@ -230,8 +233,104 @@ class Workbench {
         $task_total_count    = $this->get_pending_client_task_count();
         $roadmap_total_count = $this->get_active_roadmap_item_count();
 
+        // Get organizations for simulation dropdown.
+        $organizations = $this->get_all_organizations();
+
+        // Get current simulation state.
+        $simulating_org_id   = $this->get_simulating_org_id();
+        $simulating_org_name = '';
+        if ( $simulating_org_id ) {
+            $simulating_org_name = get_the_title( $simulating_org_id );
+        }
+
         // Load the template.
         include BBAB_CORE_PATH . 'admin/partials/workbench-main.php';
+    }
+
+    /**
+     * Handle simulation start/stop actions from URL parameters.
+     *
+     * @since 1.0.0
+     * @return void
+     */
+    private function handle_simulation_actions() {
+        $user_id = get_current_user_id();
+
+        // Stop simulation.
+        if ( isset( $_GET['bbab_stop_simulation'] ) && $_GET['bbab_stop_simulation'] ) {
+            // Verify nonce.
+            if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'bbab_simulation' ) ) {
+                return;
+            }
+
+            delete_transient( 'bbab_simulating_org_' . $user_id );
+
+            // Redirect to remove the query args.
+            wp_safe_redirect( admin_url( 'admin.php?page=bbab-workbench' ) );
+            exit;
+        }
+
+        // Start simulation.
+        if ( isset( $_GET['bbab_simulate_org'] ) && ! empty( $_GET['bbab_simulate_org'] ) ) {
+            // Verify nonce (wp_nonce_url uses _wpnonce).
+            if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'bbab_simulation' ) ) {
+                return;
+            }
+
+            $org_id = absint( $_GET['bbab_simulate_org'] );
+
+            // Verify the org exists.
+            $org_post = get_post( $org_id );
+            if ( $org_post && 'client_organization' === $org_post->post_type ) {
+                // Set transient for 8 hours.
+                set_transient( 'bbab_simulating_org_' . $user_id, $org_id, 8 * HOUR_IN_SECONDS );
+            }
+
+            // Redirect to remove the query args.
+            wp_safe_redirect( admin_url( 'admin.php?page=bbab-workbench' ) );
+            exit;
+        }
+    }
+
+    /**
+     * Get the currently simulated organization ID for the current user.
+     *
+     * @since 1.0.0
+     * @return int Organization ID or 0 if not simulating.
+     */
+    public function get_simulating_org_id() {
+        $user_id = get_current_user_id();
+        $org_id  = get_transient( 'bbab_simulating_org_' . $user_id );
+
+        return $org_id ? absint( $org_id ) : 0;
+    }
+
+    /**
+     * Get all client organizations for the simulation dropdown.
+     *
+     * @since 1.0.0
+     * @return array
+     */
+    private function get_all_organizations() {
+        $orgs = get_posts( array(
+            'post_type'      => 'client_organization',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'orderby'        => 'title',
+            'order'          => 'ASC',
+        ) );
+
+        $result = array();
+        foreach ( $orgs as $org ) {
+            $shortcode = get_post_meta( $org->ID, 'organization_shortcode', true );
+            $result[]  = array(
+                'id'        => $org->ID,
+                'name'      => $org->post_title,
+                'shortcode' => $shortcode,
+            );
+        }
+
+        return $result;
     }
 
     /**
