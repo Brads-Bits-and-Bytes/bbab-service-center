@@ -91,8 +91,13 @@ class AdminLoader {
             return;
         }
 
-        // Check for missing settings
+        // Check for missing settings - but don't clutter the workbench with warnings
         $missing = \BBAB\ServiceCenter\Utils\Settings::getMissingConfiguration();
+
+        // Skip warning on workbench pages - Brad knows what's up
+        if (strpos($screen->id, 'bbab-workbench') !== false) {
+            return;
+        }
 
         if (!empty($missing) && ($screen->id === 'dashboard' || strpos($screen->id, 'bbab') !== false)) {
             $missing_list = implode(', ', $missing);

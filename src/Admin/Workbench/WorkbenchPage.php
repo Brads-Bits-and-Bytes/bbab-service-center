@@ -1,4 +1,13 @@
 <?php
+/**
+ * Brad's Workbench - Main Dashboard Page.
+ *
+ * Ported from admin/class-workbench.php with proper namespacing.
+ *
+ * @package BBAB\ServiceCenter\Admin\Workbench
+ * @since   2.0.0
+ */
+
 declare(strict_types=1);
 
 namespace BBAB\ServiceCenter\Admin\Workbench;
@@ -7,44 +16,33 @@ use BBAB\ServiceCenter\Utils\Cache;
 use BBAB\ServiceCenter\Utils\Logger;
 use BBAB\ServiceCenter\Core\SimulationBootstrap;
 
-/**
- * Brad's Workbench - Main Dashboard Page.
- *
- * Provides an admin command center with quick access to:
- * - Service Requests
- * - Projects
- * - Invoices
- * - Client Tasks
- * - Roadmap Items
- * - Client simulation controls
- */
 class WorkbenchPage {
 
     /**
      * Status sort order for Service Requests.
      */
     private array $sr_status_order = [
-        'New' => 1,
-        'Acknowledged' => 2,
-        'In Progress' => 3,
+        'New'               => 1,
+        'Acknowledged'      => 2,
+        'In Progress'       => 3,
         'Waiting on Client' => 4,
-        'On Hold' => 5,
+        'On Hold'           => 5,
     ];
 
     /**
      * Status sort order for Projects.
      */
     private array $project_status_order = [
-        'Active' => 1,
+        'Active'            => 1,
         'Waiting on Client' => 2,
-        'On Hold' => 3,
+        'On Hold'           => 3,
     ];
 
     /**
      * Status sort order for Invoices.
      */
     private array $invoice_status_order = [
-        'Draft' => 1,
+        'Draft'   => 1,
         'Pending' => 2,
         'Partial' => 3,
         'Overdue' => 4,
@@ -55,6 +53,86 @@ class WorkbenchPage {
      */
     public function register(): void {
         add_action('admin_menu', [$this, 'registerMenuPages']);
+        add_action('admin_init', [$this, 'handleSimulationActions']);
+        add_action('pre_get_posts', [$this, 'handleAdminListFilters']);
+    }
+
+    /**
+     * Handle custom admin list filters for time entries and milestones.
+     */
+    public function handleAdminListFilters(\WP_Query $query): void {
+        if (!is_admin() || !$query->is_main_query()) {
+            return;
+        }
+
+        $post_type = $query->get('post_type');
+
+        // Filter time entries by SR
+        if ($post_type === 'time_entry' && !empty($_GET['bbab_sr_id'])) {
+            $sr_id = absint($_GET['bbab_sr_id']);
+            $meta_query = $query->get('meta_query') ?: [];
+            $meta_query[] = [
+                'key' => 'related_service_request',
+                'value' => $sr_id,
+                'compare' => '=',
+            ];
+            $query->set('meta_query', $meta_query);
+        }
+
+        // Filter time entries by project (includes direct project TEs AND milestone TEs)
+        if ($post_type === 'time_entry' && !empty($_GET['bbab_project_id'])) {
+            $project_id = absint($_GET['bbab_project_id']);
+
+            // Get all milestone IDs for this project
+            $milestone_ids = get_posts([
+                'post_type' => 'milestone',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'fields' => 'ids',
+                'meta_query' => [
+                    [
+                        'key' => 'related_project',
+                        'value' => $project_id,
+                        'compare' => '=',
+                    ],
+                ],
+            ]);
+
+            $meta_query = $query->get('meta_query') ?: [];
+
+            // Build OR query: related_project = X OR related_milestone IN (milestone_ids)
+            $project_filter = [
+                'relation' => 'OR',
+                [
+                    'key' => 'related_project',
+                    'value' => $project_id,
+                    'compare' => '=',
+                ],
+            ];
+
+            if (!empty($milestone_ids)) {
+                $project_filter[] = [
+                    'key' => 'related_milestone',
+                    'value' => $milestone_ids,
+                    'compare' => 'IN',
+                ];
+            }
+
+            $meta_query[] = $project_filter;
+            $query->set('meta_query', $meta_query);
+        }
+
+        // Filter milestones by project
+        if ($post_type === 'milestone' && !empty($_GET['bbab_project_id'])) {
+            $project_id = absint($_GET['bbab_project_id']);
+            $meta_query = $query->get('meta_query') ?: [];
+            $meta_query[] = [
+                'key' => 'related_project',
+                'value' => $project_id,
+                'compare' => '=',
+            ];
+            $query->set('meta_query', $meta_query);
+        }
     }
 
     /**
@@ -82,8 +160,85 @@ class WorkbenchPage {
             [$this, 'renderMainPage']
         );
 
-        // Sub-pages will be added later when those classes are ported
-        // For now, just the main dashboard
+        // Sub-pages - will be fully ported later
+        add_submenu_page(
+            'bbab-workbench',
+            __('Projects', 'bbab-service-center'),
+            __('Projects', 'bbab-service-center'),
+            'manage_options',
+            'bbab-projects',
+            [$this, 'renderProjectsPage']
+        );
+
+        add_submenu_page(
+            'bbab-workbench',
+            __('Service Requests', 'bbab-service-center'),
+            __('Service Requests', 'bbab-service-center'),
+            'manage_options',
+            'bbab-requests',
+            [$this, 'renderRequestsPage']
+        );
+
+        add_submenu_page(
+            'bbab-workbench',
+            __('Invoices', 'bbab-service-center'),
+            __('Invoices', 'bbab-service-center'),
+            'manage_options',
+            'bbab-invoices',
+            [$this, 'renderInvoicesPage']
+        );
+
+        add_submenu_page(
+            'bbab-workbench',
+            __('Client Tasks', 'bbab-service-center'),
+            __('Client Tasks', 'bbab-service-center'),
+            'manage_options',
+            'bbab-tasks',
+            [$this, 'renderTasksPage']
+        );
+
+        add_submenu_page(
+            'bbab-workbench',
+            __('Roadmap Items', 'bbab-service-center'),
+            __('Roadmap Items', 'bbab-service-center'),
+            'manage_options',
+            'bbab-roadmap',
+            [$this, 'renderRoadmapPage']
+        );
+    }
+
+    /**
+     * Handle simulation start/stop actions.
+     */
+    public function handleSimulationActions(): void {
+        // Only on our page
+        if (!isset($_GET['page']) || $_GET['page'] !== 'bbab-workbench') {
+            return;
+        }
+
+        // Exit simulation
+        if (isset($_GET['bbab_sc_exit_simulation'])) {
+            if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bbab_sc_simulation')) {
+                return;
+            }
+            SimulationBootstrap::clearSimulation();
+            wp_safe_redirect(admin_url('admin.php?page=bbab-workbench'));
+            exit;
+        }
+
+        // Start simulation
+        if (isset($_GET['bbab_sc_simulate_org']) && !empty($_GET['bbab_sc_simulate_org'])) {
+            if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bbab_sc_simulation')) {
+                return;
+            }
+            $org_id = absint($_GET['bbab_sc_simulate_org']);
+            $org_post = get_post($org_id);
+            if ($org_post && $org_post->post_type === 'client_organization') {
+                SimulationBootstrap::setSimulation($org_id);
+            }
+            wp_safe_redirect(admin_url('admin.php?page=bbab-workbench'));
+            exit;
+        }
     }
 
     /**
@@ -94,15 +249,19 @@ class WorkbenchPage {
             wp_die(esc_html__('You do not have sufficient permissions.', 'bbab-service-center'));
         }
 
-        // Get data
+        // Get data for boxes
         $service_requests = $this->getOpenServiceRequests(10);
         $projects = $this->getActiveProjects(10);
         $invoices = $this->getPendingInvoices(10);
+        $client_tasks = $this->getPendingClientTasks(10);
+        $roadmap_items = $this->getActiveRoadmapItems(10);
 
         // Get counts
         $sr_total_count = $this->getOpenServiceRequestCount();
         $project_total_count = $this->getActiveProjectCount();
         $invoice_total_count = $this->getPendingInvoiceCount();
+        $task_total_count = $this->getPendingClientTaskCount();
+        $roadmap_total_count = $this->getActiveRoadmapItemCount();
 
         // Get organizations for simulation
         $organizations = $this->getAllOrganizations();
@@ -111,297 +270,39 @@ class WorkbenchPage {
         $simulating_org_id = SimulationBootstrap::getCurrentSimulatedOrgId();
         $simulating_org_name = $simulating_org_id ? get_the_title($simulating_org_id) : '';
 
-        // Render
-        ?>
-        <div class="wrap bbab-workbench">
-            <h1><?php esc_html_e("Brad's Workbench", 'bbab-service-center'); ?></h1>
-
-            <?php $this->renderSimulationBox($organizations, $simulating_org_id, $simulating_org_name); ?>
-
-            <div class="bbab-workbench-grid">
-                <?php
-                $this->renderServiceRequestsBox($service_requests, $sr_total_count);
-                $this->renderProjectsBox($projects, $project_total_count);
-                $this->renderInvoicesBox($invoices, $invoice_total_count);
-                ?>
-            </div>
-        </div>
-
-        <style>
-            .bbab-workbench-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-                gap: 20px;
-                margin-top: 20px;
-            }
-            .bbab-workbench-box {
-                background: #fff;
-                border: 1px solid #c3c4c7;
-                box-shadow: 0 1px 1px rgba(0,0,0,.04);
-            }
-            .bbab-workbench-box-header {
-                padding: 12px 15px;
-                border-bottom: 1px solid #c3c4c7;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-            .bbab-workbench-box-header h2 {
-                margin: 0;
-                font-size: 14px;
-            }
-            .bbab-workbench-box-content {
-                padding: 0;
-            }
-            .bbab-workbench-table {
-                width: 100%;
-                border-collapse: collapse;
-            }
-            .bbab-workbench-table th,
-            .bbab-workbench-table td {
-                padding: 8px 12px;
-                text-align: left;
-                border-bottom: 1px solid #f0f0f1;
-            }
-            .bbab-workbench-table tr:last-child td {
-                border-bottom: none;
-            }
-            .bbab-status-badge {
-                display: inline-block;
-                padding: 2px 8px;
-                border-radius: 3px;
-                font-size: 11px;
-                font-weight: 500;
-            }
-            .status-new { background: #dff0d8; color: #3c763d; }
-            .status-acknowledged { background: #d9edf7; color: #31708f; }
-            .status-in-progress { background: #fcf8e3; color: #8a6d3b; }
-            .status-waiting-on-client { background: #f2dede; color: #a94442; }
-            .status-on-hold { background: #e0e0e0; color: #666; }
-            .status-active { background: #dff0d8; color: #3c763d; }
-            .status-draft { background: #e0e0e0; color: #666; }
-            .status-pending { background: #fcf8e3; color: #8a6d3b; }
-            .status-overdue { background: #f2dede; color: #a94442; }
-            .bbab-simulation-box {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: #fff;
-                padding: 15px 20px;
-                margin-bottom: 20px;
-                border-radius: 4px;
-            }
-            .bbab-simulation-box.active {
-                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            }
-            .bbab-simulation-box h3 {
-                margin: 0 0 10px 0;
-                color: #fff;
-            }
-            .bbab-simulation-box select {
-                padding: 8px 12px;
-                min-width: 200px;
-            }
-            .bbab-simulation-box .button {
-                margin-left: 10px;
-            }
-        </style>
-        <?php
+        // Render the page
+        include BBAB_SC_PATH . 'templates/admin/workbench-main.php';
     }
 
     /**
-     * Render the simulation control box.
+     * Placeholder for sub-pages - redirect to original for now
      */
-    private function renderSimulationBox(array $organizations, ?int $simulating_org_id, string $simulating_org_name): void {
-        $is_active = $simulating_org_id > 0;
-        ?>
-        <div class="bbab-simulation-box <?php echo $is_active ? 'active' : ''; ?>">
-            <h3>
-                <?php if ($is_active): ?>
-                    🔍 Simulating: <?php echo esc_html($simulating_org_name); ?>
-                <?php else: ?>
-                    👤 Client Simulation
-                <?php endif; ?>
-            </h3>
-
-            <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>">
-                <input type="hidden" name="page" value="bbab-workbench">
-                <?php wp_nonce_field('bbab_sc_simulation', '_wpnonce'); ?>
-
-                <?php if ($is_active): ?>
-                    <p>You are viewing the site as <strong><?php echo esc_html($simulating_org_name); ?></strong></p>
-                    <a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=bbab-workbench&bbab_sc_exit_simulation=1'), 'bbab_sc_simulation')); ?>" class="button button-primary">
-                        Exit Simulation
-                    </a>
-                    <a href="<?php echo esc_url(home_url()); ?>" class="button" target="_blank">
-                        View Frontend →
-                    </a>
-                <?php else: ?>
-                    <select name="bbab_sc_simulate_org">
-                        <option value="">Select an organization...</option>
-                        <?php foreach ($organizations as $org): ?>
-                            <option value="<?php echo esc_attr($org['id']); ?>">
-                                <?php echo esc_html($org['name']); ?>
-                                <?php if ($org['shortcode']): ?>
-                                    (<?php echo esc_html($org['shortcode']); ?>)
-                                <?php endif; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <button type="submit" class="button button-primary">Start Simulation</button>
-                <?php endif; ?>
-            </form>
-        </div>
-        <?php
+    public function renderProjectsPage(): void {
+        $this->renderSubpagePlaceholder('Projects');
     }
 
-    /**
-     * Render the service requests box.
-     */
-    private function renderServiceRequestsBox(array $requests, int $total): void {
-        ?>
-        <div class="bbab-workbench-box">
-            <div class="bbab-workbench-box-header">
-                <h2>📋 Service Requests</h2>
-                <a href="<?php echo esc_url(admin_url('edit.php?post_type=service_request')); ?>">
-                    View All (<?php echo esc_html($total); ?>)
-                </a>
-            </div>
-            <div class="bbab-workbench-box-content">
-                <?php if (empty($requests)): ?>
-                    <p style="padding: 15px; margin: 0;">No open service requests.</p>
-                <?php else: ?>
-                    <table class="bbab-workbench-table">
-                        <thead>
-                            <tr>
-                                <th>Ref</th>
-                                <th>Org</th>
-                                <th>Title</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($requests as $sr): ?>
-                                <?php
-                                $ref = get_post_meta($sr->ID, 'reference_number', true);
-                                $status = get_post_meta($sr->ID, 'request_status', true);
-                                $org_shortcode = $this->getOrgShortcode($sr->ID);
-                                ?>
-                                <tr>
-                                    <td>
-                                        <a href="<?php echo esc_url(get_edit_post_link($sr->ID)); ?>">
-                                            <?php echo esc_html($ref ?: 'SR-' . $sr->ID); ?>
-                                        </a>
-                                    </td>
-                                    <td><?php echo esc_html($org_shortcode); ?></td>
-                                    <td><?php echo esc_html(wp_trim_words($sr->post_title, 6)); ?></td>
-                                    <td><?php echo $this->renderStatusBadge($status); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
-        </div>
-        <?php
+    public function renderRequestsPage(): void {
+        $this->renderSubpagePlaceholder('Service Requests');
     }
 
-    /**
-     * Render the projects box.
-     */
-    private function renderProjectsBox(array $projects, int $total): void {
-        ?>
-        <div class="bbab-workbench-box">
-            <div class="bbab-workbench-box-header">
-                <h2>📁 Projects</h2>
-                <a href="<?php echo esc_url(admin_url('edit.php?post_type=project')); ?>">
-                    View All (<?php echo esc_html($total); ?>)
-                </a>
-            </div>
-            <div class="bbab-workbench-box-content">
-                <?php if (empty($projects)): ?>
-                    <p style="padding: 15px; margin: 0;">No active projects.</p>
-                <?php else: ?>
-                    <table class="bbab-workbench-table">
-                        <thead>
-                            <tr>
-                                <th>Org</th>
-                                <th>Project</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($projects as $project): ?>
-                                <?php
-                                $status = get_post_meta($project->ID, 'project_status', true);
-                                $org_shortcode = $this->getOrgShortcode($project->ID);
-                                ?>
-                                <tr>
-                                    <td><?php echo esc_html($org_shortcode); ?></td>
-                                    <td>
-                                        <a href="<?php echo esc_url(get_edit_post_link($project->ID)); ?>">
-                                            <?php echo esc_html(wp_trim_words($project->post_title, 6)); ?>
-                                        </a>
-                                    </td>
-                                    <td><?php echo $this->renderStatusBadge($status); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
-        </div>
-        <?php
+    public function renderInvoicesPage(): void {
+        $this->renderSubpagePlaceholder('Invoices');
     }
 
-    /**
-     * Render the invoices box.
-     */
-    private function renderInvoicesBox(array $invoices, int $total): void {
-        ?>
-        <div class="bbab-workbench-box">
-            <div class="bbab-workbench-box-header">
-                <h2>💰 Invoices</h2>
-                <a href="<?php echo esc_url(admin_url('edit.php?post_type=invoice')); ?>">
-                    View All (<?php echo esc_html($total); ?>)
-                </a>
-            </div>
-            <div class="bbab-workbench-box-content">
-                <?php if (empty($invoices)): ?>
-                    <p style="padding: 15px; margin: 0;">No pending invoices.</p>
-                <?php else: ?>
-                    <table class="bbab-workbench-table">
-                        <thead>
-                            <tr>
-                                <th>Invoice</th>
-                                <th>Org</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($invoices as $invoice): ?>
-                                <?php
-                                $inv_num = get_post_meta($invoice->ID, 'invoice_number', true);
-                                $status = get_post_meta($invoice->ID, 'invoice_status', true);
-                                $amount = get_post_meta($invoice->ID, 'total_amount', true);
-                                $org_shortcode = $this->getOrgShortcode($invoice->ID);
-                                ?>
-                                <tr>
-                                    <td>
-                                        <a href="<?php echo esc_url(get_edit_post_link($invoice->ID)); ?>">
-                                            <?php echo esc_html($inv_num ?: 'INV-' . $invoice->ID); ?>
-                                        </a>
-                                    </td>
-                                    <td><?php echo esc_html($org_shortcode); ?></td>
-                                    <td><?php echo esc_html($this->formatCurrency((float)$amount)); ?></td>
-                                    <td><?php echo $this->renderStatusBadge($status); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
-        </div>
-        <?php
+    public function renderTasksPage(): void {
+        $this->renderSubpagePlaceholder('Client Tasks');
+    }
+
+    public function renderRoadmapPage(): void {
+        $this->renderSubpagePlaceholder('Roadmap Items');
+    }
+
+    private function renderSubpagePlaceholder(string $name): void {
+        echo '<div class="wrap">';
+        echo '<h1>' . esc_html($name) . '</h1>';
+        echo '<p>This sub-page will be fully ported in a future phase. ';
+        echo 'For now, use the main <a href="' . esc_url(admin_url('admin.php?page=bbab-workbench')) . '">Workbench Dashboard</a>.</p>';
+        echo '</div>';
     }
 
     /**
@@ -418,8 +319,8 @@ class WorkbenchPage {
 
         $result = [];
         foreach ($orgs as $org) {
-            $shortcode = get_post_meta($org->ID, 'shortcode', true)
-                ?: get_post_meta($org->ID, 'organization_shortcode', true);
+            $shortcode = get_post_meta($org->ID, 'organization_shortcode', true)
+                ?: get_post_meta($org->ID, 'shortcode', true);
             $result[] = [
                 'id' => $org->ID,
                 'name' => $org->post_title,
@@ -450,7 +351,6 @@ class WorkbenchPage {
                 ],
             ]);
 
-            // Sort by status priority
             usort($results, function($a, $b) {
                 $status_a = get_post_meta($a->ID, 'request_status', true);
                 $status_b = get_post_meta($b->ID, 'request_status', true);
@@ -469,9 +369,6 @@ class WorkbenchPage {
         }, HOUR_IN_SECONDS);
     }
 
-    /**
-     * Get open service request count.
-     */
     public function getOpenServiceRequestCount(): int {
         $cache_key = 'workbench_open_srs_count';
 
@@ -532,9 +429,6 @@ class WorkbenchPage {
         }, HOUR_IN_SECONDS);
     }
 
-    /**
-     * Get active project count.
-     */
     public function getActiveProjectCount(): int {
         $cache_key = 'workbench_active_projects_count';
 
@@ -598,9 +492,6 @@ class WorkbenchPage {
         }, HOUR_IN_SECONDS);
     }
 
-    /**
-     * Get pending invoice count.
-     */
     public function getPendingInvoiceCount(): int {
         $cache_key = 'workbench_pending_invoices_count';
 
@@ -624,6 +515,148 @@ class WorkbenchPage {
     }
 
     /**
+     * Get pending client tasks.
+     */
+    public function getPendingClientTasks(int $limit = 10): array {
+        $cache_key = 'workbench_pending_tasks_' . $limit;
+
+        return Cache::remember($cache_key, function() use ($limit) {
+            $results = get_posts([
+                'post_type' => 'client_task',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'meta_query' => [
+                    [
+                        'key' => 'task_status',
+                        'value' => 'Pending',
+                        'compare' => '=',
+                    ],
+                ],
+            ]);
+
+            usort($results, function($a, $b) {
+                $due_a = get_post_meta($a->ID, 'due_date', true);
+                $due_b = get_post_meta($b->ID, 'due_date', true);
+
+                if (empty($due_a) && empty($due_b)) {
+                    return strtotime($b->post_date) - strtotime($a->post_date);
+                }
+
+                if (empty($due_a)) return 1;
+                if (empty($due_b)) return -1;
+
+                return strtotime($due_a) - strtotime($due_b);
+            });
+
+            return array_slice($results, 0, $limit);
+        }, HOUR_IN_SECONDS);
+    }
+
+    public function getPendingClientTaskCount(): int {
+        $cache_key = 'workbench_pending_tasks_count';
+
+        return Cache::remember($cache_key, function() {
+            $results = get_posts([
+                'post_type' => 'client_task',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'fields' => 'ids',
+                'meta_query' => [
+                    [
+                        'key' => 'task_status',
+                        'value' => 'Pending',
+                        'compare' => '=',
+                    ],
+                ],
+            ]);
+
+            return count($results);
+        }, HOUR_IN_SECONDS);
+    }
+
+    /**
+     * Get active roadmap items.
+     */
+    public function getActiveRoadmapItems(int $limit = 10): array {
+        $cache_key = 'workbench_active_roadmap_' . $limit;
+
+        $priority_order = [
+            'High' => 1,
+            'Medium' => 2,
+            'Low' => 3,
+        ];
+
+        $status_order = [
+            'Proposed' => 1,
+            'ADR In Progress' => 2,
+            'Idea' => 3,
+        ];
+
+        return Cache::remember($cache_key, function() use ($limit, $priority_order, $status_order) {
+            $results = get_posts([
+                'post_type' => 'roadmap_item',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'meta_query' => [
+                    [
+                        'key' => 'roadmap_status',
+                        'value' => ['Idea', 'ADR In Progress', 'Proposed'],
+                        'compare' => 'IN',
+                    ],
+                ],
+            ]);
+
+            usort($results, function($a, $b) use ($status_order, $priority_order) {
+                $status_a = get_post_meta($a->ID, 'roadmap_status', true);
+                $status_b = get_post_meta($b->ID, 'roadmap_status', true);
+
+                $s_order_a = $status_order[$status_a] ?? 99;
+                $s_order_b = $status_order[$status_b] ?? 99;
+
+                if ($s_order_a !== $s_order_b) {
+                    return $s_order_a - $s_order_b;
+                }
+
+                $prio_a = get_post_meta($a->ID, 'priority', true);
+                $prio_b = get_post_meta($b->ID, 'priority', true);
+
+                $p_order_a = $priority_order[$prio_a] ?? 99;
+                $p_order_b = $priority_order[$prio_b] ?? 99;
+
+                if ($p_order_a !== $p_order_b) {
+                    return $p_order_a - $p_order_b;
+                }
+
+                return strtotime($b->post_date) - strtotime($a->post_date);
+            });
+
+            return array_slice($results, 0, $limit);
+        }, HOUR_IN_SECONDS);
+    }
+
+    public function getActiveRoadmapItemCount(): int {
+        $cache_key = 'workbench_active_roadmap_count';
+
+        return Cache::remember($cache_key, function() {
+            $results = get_posts([
+                'post_type' => 'roadmap_item',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'fields' => 'ids',
+                'meta_query' => [
+                    [
+                        'key' => 'roadmap_status',
+                        'value' => ['Idea', 'ADR In Progress', 'Proposed'],
+                        'compare' => 'IN',
+                    ],
+                ],
+            ]);
+
+            return count($results);
+        }, HOUR_IN_SECONDS);
+    }
+
+    /**
      * Get organization shortcode for a post.
      */
     public function getOrgShortcode(int $post_id): string {
@@ -637,16 +670,139 @@ class WorkbenchPage {
             $org_id = reset($org_id);
         }
 
-        $shortcode = get_post_meta($org_id, 'shortcode', true)
-            ?: get_post_meta($org_id, 'organization_shortcode', true);
+        $shortcode = get_post_meta($org_id, 'organization_shortcode', true)
+            ?: get_post_meta($org_id, 'shortcode', true);
 
         return $shortcode ?: '';
     }
 
     /**
+     * Get task organization shortcode (uses wp_podsrel for Advanced Relationship).
+     */
+    public function getTaskOrgShortcode(int $task_id): string {
+        global $wpdb;
+
+        $org_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT related_item_id FROM {$wpdb->prefix}podsrel
+             WHERE item_id = %d AND field_id = 1320",
+            $task_id
+        ));
+
+        if (empty($org_id)) {
+            return '';
+        }
+
+        $shortcode = get_post_meta($org_id, 'organization_shortcode', true)
+            ?: get_post_meta($org_id, 'shortcode', true);
+
+        return $shortcode ?: '';
+    }
+
+    /**
+     * Get time entry count for a service request.
+     */
+    public function getSrTimeEntryCount(int $sr_id): int {
+        $cache_key = 'sr_te_count_' . $sr_id;
+
+        return Cache::remember($cache_key, function() use ($sr_id) {
+            $entries = get_posts([
+                'post_type' => 'time_entry',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'fields' => 'ids',
+                'meta_query' => [
+                    [
+                        'key' => 'related_service_request',
+                        'value' => $sr_id,
+                        'compare' => '=',
+                    ],
+                ],
+            ]);
+
+            return count($entries);
+        }, HOUR_IN_SECONDS);
+    }
+
+    /**
+     * Get time entry count for a project.
+     */
+    public function getProjectTimeEntryCount(int $project_id): int {
+        $cache_key = 'project_te_count_' . $project_id;
+
+        return Cache::remember($cache_key, function() use ($project_id) {
+            $direct_entries = get_posts([
+                'post_type' => 'time_entry',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'fields' => 'ids',
+                'meta_query' => [
+                    [
+                        'key' => 'related_project',
+                        'value' => $project_id,
+                        'compare' => '=',
+                    ],
+                ],
+            ]);
+
+            $milestones = $this->getProjectMilestones($project_id);
+            $milestone_entries = [];
+
+            foreach ($milestones as $milestone_id) {
+                $ms_entries = get_posts([
+                    'post_type' => 'time_entry',
+                    'post_status' => 'publish',
+                    'posts_per_page' => -1,
+                    'fields' => 'ids',
+                    'meta_query' => [
+                        [
+                            'key' => 'related_milestone',
+                            'value' => $milestone_id,
+                            'compare' => '=',
+                        ],
+                    ],
+                ]);
+                $milestone_entries = array_merge($milestone_entries, $ms_entries);
+            }
+
+            $all_entries = array_unique(array_merge($direct_entries, $milestone_entries));
+            return count($all_entries);
+        }, HOUR_IN_SECONDS);
+    }
+
+    /**
+     * Get milestone count for a project.
+     */
+    public function getProjectMilestoneCount(int $project_id): int {
+        return count($this->getProjectMilestones($project_id));
+    }
+
+    /**
+     * Get milestone IDs for a project.
+     */
+    public function getProjectMilestones(int $project_id): array {
+        $cache_key = 'project_milestones_' . $project_id;
+
+        return Cache::remember($cache_key, function() use ($project_id) {
+            return get_posts([
+                'post_type' => 'milestone',
+                'post_status' => 'publish',
+                'posts_per_page' => -1,
+                'fields' => 'ids',
+                'meta_query' => [
+                    [
+                        'key' => 'related_project',
+                        'value' => $project_id,
+                        'compare' => '=',
+                    ],
+                ],
+            ]);
+        }, HOUR_IN_SECONDS);
+    }
+
+    /**
      * Render a status badge.
      */
-    public function renderStatusBadge(string $status): string {
+    public function renderStatusBadge(string $status, string $type = ''): string {
         if (empty($status)) {
             return '';
         }
@@ -665,5 +821,42 @@ class WorkbenchPage {
      */
     public function formatCurrency(float $amount): string {
         return '$' . number_format($amount, 2);
+    }
+
+    /**
+     * Get edit link for a post.
+     */
+    public function getEditLink(int $post_id): string {
+        return get_edit_post_link($post_id, 'raw') ?: '';
+    }
+
+    /**
+     * Get filtered admin list URL for time entries by SR.
+     */
+    public function getTimeEntriesBySrUrl(int $sr_id): string {
+        return add_query_arg([
+            'post_type' => 'time_entry',
+            'bbab_sr_id' => absint($sr_id),
+        ], admin_url('edit.php'));
+    }
+
+    /**
+     * Get filtered admin list URL for time entries by project.
+     */
+    public function getTimeEntriesByProjectUrl(int $project_id): string {
+        return add_query_arg([
+            'post_type' => 'time_entry',
+            'bbab_project_id' => absint($project_id),
+        ], admin_url('edit.php'));
+    }
+
+    /**
+     * Get filtered admin list URL for milestones by project.
+     */
+    public function getMilestonesByProjectUrl(int $project_id): string {
+        return add_query_arg([
+            'post_type' => 'milestone',
+            'bbab_project_id' => absint($project_id),
+        ], admin_url('edit.php'));
     }
 }
