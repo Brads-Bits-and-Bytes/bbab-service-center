@@ -16,18 +16,113 @@
 
 .bbab-workbench-header {
     margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    flex-wrap: wrap;
 }
 
-.bbab-workbench-header h1 {
+.bbab-header-left h1 {
     display: flex;
     align-items: center;
     gap: 10px;
+    margin-bottom: 5px;
 }
 
-.bbab-workbench-header .dashicons {
+.bbab-header-left .dashicons {
     font-size: 32px;
     width: 32px;
     height: 32px;
+}
+
+.bbab-header-right {
+    flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Simulation Control
+   ========================================================================== */
+
+.bbab-simulation-control {
+    background: #f0f0f1;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.bbab-simulation-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bbab-simulate-select {
+    min-width: 200px;
+    max-width: 300px;
+}
+
+.bbab-simulation-form .button .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    margin-right: 2px;
+}
+
+.bbab-simulation-active {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #1d2327;
+}
+
+.bbab-simulation-active > .dashicons {
+    color: #8c6bce;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+.bbab-simulation-label {
+    font-size: 13px;
+}
+
+.bbab-simulation-label strong {
+    color: #8c6bce;
+}
+
+.bbab-stop-simulation {
+    color: #b32d2e !important;
+    border-color: #b32d2e !important;
+}
+
+.bbab-stop-simulation:hover {
+    background: #b32d2e !important;
+    color: #fff !important;
+}
+
+.bbab-simulation-active .button-primary .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+@media screen and (max-width: 782px) {
+    .bbab-workbench-header {
+        flex-direction: column;
+    }
+
+    .bbab-simulation-form {
+        flex-wrap: wrap;
+    }
+
+    .bbab-simulate-select {
+        width: 100%;
+        max-width: none;
+    }
 }
 
 /* Main grid layout - 3 columns on large screens */

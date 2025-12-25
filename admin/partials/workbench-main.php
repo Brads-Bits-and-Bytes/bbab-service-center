@@ -13,6 +13,9 @@
  * - $roadmap_items         Array of active roadmap item posts
  * - $task_total_count      Total count of pending client tasks
  * - $roadmap_total_count   Total count of active roadmap items
+ * - $organizations         Array of client organizations for simulation
+ * - $simulating_org_id     Currently simulated org ID (0 if not simulating)
+ * - $simulating_org_name   Name of currently simulated org
  *
  * @package BBAB\Core\Admin
  * @since   1.0.0
@@ -25,13 +28,66 @@ if ( ! defined( 'WPINC' ) ) {
 ?>
 <div class="wrap bbab-workbench-wrap">
     <div class="bbab-workbench-header">
-        <h1>
-            <span class="dashicons dashicons-desktop"></span>
-            <?php esc_html_e( "Brad's Workbench", 'bbab-core' ); ?>
-        </h1>
-        <p class="bbab-text-muted">
-            <?php esc_html_e( 'Your command center for the BBAB Service Center.', 'bbab-core' ); ?>
-        </p>
+        <div class="bbab-header-left">
+            <h1>
+                <span class="dashicons dashicons-desktop"></span>
+                <?php esc_html_e( "Brad's Workbench", 'bbab-core' ); ?>
+            </h1>
+            <p class="bbab-text-muted">
+                <?php esc_html_e( 'Your command center for the BBAB Service Center.', 'bbab-core' ); ?>
+            </p>
+        </div>
+        <div class="bbab-header-right">
+            <div class="bbab-simulation-control">
+                <?php if ( $simulating_org_id ) : ?>
+                    <div class="bbab-simulation-active">
+                        <span class="dashicons dashicons-visibility"></span>
+                        <span class="bbab-simulation-label">
+                            <?php
+                            printf(
+                                /* translators: %s: organization name */
+                                esc_html__( 'Viewing as: %s', 'bbab-core' ),
+                                '<strong>' . esc_html( $simulating_org_name ) . '</strong>'
+                            );
+                            ?>
+                        </span>
+                        <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=bbab-workbench&bbab_stop_simulation=1' ), 'bbab_simulation' ) ); ?>" class="button button-small bbab-stop-simulation">
+                            <?php esc_html_e( 'Exit', 'bbab-core' ); ?>
+                        </a>
+                        <a href="<?php echo esc_url( home_url( '/client-dashboard/' ) ); ?>" class="button button-primary button-small" target="_blank">
+                            <span class="dashicons dashicons-external"></span>
+                            <?php esc_html_e( 'View Portal', 'bbab-core' ); ?>
+                        </a>
+                    </div>
+                <?php else : ?>
+                    <div class="bbab-simulation-form">
+                        <label for="bbab-simulate-org" class="screen-reader-text">
+                            <?php esc_html_e( 'Simulate client view', 'bbab-core' ); ?>
+                        </label>
+                        <select id="bbab-simulate-org" class="bbab-simulate-select">
+                            <option value=""><?php esc_html_e( '👁️ Simulate Client View...', 'bbab-core' ); ?></option>
+                            <?php foreach ( $organizations as $org ) : ?>
+                                <option value="<?php echo esc_attr( $org['id'] ); ?>">
+                                    <?php echo esc_html( $org['shortcode'] ? $org['shortcode'] . ' - ' . $org['name'] : $org['name'] ); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" id="bbab-simulate-go" class="button button-primary button-small">
+                            <span class="dashicons dashicons-visibility"></span>
+                            <?php esc_html_e( 'Go', 'bbab-core' ); ?>
+                        </button>
+                    </div>
+                    <script>
+                    document.getElementById('bbab-simulate-go').addEventListener('click', function() {
+                        var orgId = document.getElementById('bbab-simulate-org').value;
+                        if (orgId) {
+                            window.location.href = <?php echo wp_json_encode( wp_nonce_url( admin_url( 'admin.php?page=bbab-workbench&bbab_simulate_org=' ), 'bbab_simulation' ) ); ?> + orgId;
+                        }
+                    });
+                    </script>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 
     <div class="bbab-workbench-grid">

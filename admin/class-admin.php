@@ -57,6 +57,9 @@ class Admin {
         // Pre-populate Pods relationship fields from URL parameters.
         add_action( 'admin_footer', array( $this, 'prepopulate_pods_fields' ) );
 
+        // Note: Simulation hooks (filter and frontend bar) are registered in BBAB_Core
+        // so they work on both admin and frontend.
+
         // Fallback: Set time entry relationship meta after post is inserted.
         add_action( 'save_post_time_entry', array( $this, 'maybe_set_time_entry_relationship' ), 5, 3 );
 
@@ -272,6 +275,118 @@ class Admin {
         );
 
         return in_array( $hook_suffix, $plugin_pages, true ) || in_array( $hook_suffix, $alt_pages, true );
+    }
+
+    /**
+     * Filter callback to override org ID when simulation is active.
+     *
+     * This hooks into the bbab_simulated_org_id filter that's called
+     * by bbab_get_user_org_id() in the helper snippet.
+     *
+     * @since 1.0.0
+     * @param int|false $org_id  Current org ID (false = no override).
+     * @param int       $user_id The user ID being looked up.
+     * @return int|false Organization ID to simulate, or false for no override.
+     */
+    public function maybe_override_org_id( $org_id, $user_id ) {
+        // Only admins can simulate.
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return false;
+        }
+
+        // Check for simulation transient.
+        $simulated_org = get_transient( 'bbab_simulating_org_' . get_current_user_id() );
+
+        if ( $simulated_org ) {
+            return absint( $simulated_org );
+        }
+
+        return false;
+    }
+
+    /**
+     * Render the simulation indicator bar on the frontend.
+     *
+     * Shows a floating bar when an admin is viewing the site as a client.
+     *
+     * @since 1.0.0
+     * @return void
+     */
+    public function render_simulation_indicator() {
+        // Only for admins.
+        if ( ! current_user_can( 'manage_options' ) ) {
+            return;
+        }
+
+        // Check if simulating.
+        $simulated_org = get_transient( 'bbab_simulating_org_' . get_current_user_id() );
+
+        if ( ! $simulated_org ) {
+            return;
+        }
+
+        $org_name = get_the_title( $simulated_org );
+        $exit_url = wp_nonce_url(
+            admin_url( 'admin.php?page=bbab-workbench&bbab_stop_simulation=1' ),
+            'bbab_simulation'
+        );
+        ?>
+        <div id="bbab-simulation-bar" style="
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 12px 20px;
+            z-index: 99999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+        ">
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <span class="dashicons dashicons-visibility" style="font-size: 18px;"></span>
+                <strong><?php esc_html_e( 'Simulation Mode', 'bbab-core' ); ?></strong>
+                <?php
+                printf(
+                    /* translators: %s: organization name */
+                    esc_html__( 'Viewing as: %s', 'bbab-core' ),
+                    '<strong>' . esc_html( $org_name ) . '</strong>'
+                );
+                ?>
+            </span>
+            <a href="<?php echo esc_url( $exit_url ); ?>" style="
+                background: rgba(255,255,255,0.2);
+                color: #fff;
+                padding: 6px 16px;
+                border-radius: 4px;
+                text-decoration: none;
+                font-weight: 500;
+                transition: background 0.2s;
+            " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                <?php esc_html_e( 'Exit Simulation', 'bbab-core' ); ?>
+            </a>
+            <a href="<?php echo esc_url( admin_url( 'admin.php?page=bbab-workbench' ) ); ?>" style="
+                background: #fff;
+                color: #667eea;
+                padding: 6px 16px;
+                border-radius: 4px;
+                text-decoration: none;
+                font-weight: 500;
+                transition: opacity 0.2s;
+            " onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                <?php esc_html_e( 'Back to Workbench', 'bbab-core' ); ?>
+            </a>
+        </div>
+        <style>
+            /* Add padding to body so content isn't hidden behind the bar */
+            body { padding-bottom: 60px !important; }
+        </style>
+        <?php
     }
 
     /**
