@@ -5,8 +5,11 @@ namespace BBAB\ServiceCenter\Admin;
 
 use BBAB\ServiceCenter\Admin\Workbench\WorkbenchPage;
 use BBAB\ServiceCenter\Admin\Pages\ClientHealthDashboard;
+use BBAB\ServiceCenter\Admin\Pages\SettingsPage;
 use BBAB\ServiceCenter\Modules\TimeTracking\TimeEntryService;
 use BBAB\ServiceCenter\Modules\TimeTracking\TimerService;
+use BBAB\ServiceCenter\Modules\ServiceRequests\ReferenceGenerator;
+use BBAB\ServiceCenter\Modules\ServiceRequests\FormProcessor;
 use BBAB\ServiceCenter\Utils\Logger;
 
 /**
@@ -30,6 +33,11 @@ class AdminLoader {
     private ClientHealthDashboard $health_dashboard;
 
     /**
+     * Settings page instance.
+     */
+    private SettingsPage $settings_page;
+
+    /**
      * Register all admin hooks.
      */
     public function register(): void {
@@ -41,6 +49,10 @@ class AdminLoader {
         $this->health_dashboard = new ClientHealthDashboard();
         $this->health_dashboard->register();
 
+        // Initialize Settings Page
+        $this->settings_page = new SettingsPage();
+        $this->settings_page->register();
+
         // Initialize Time Entry Linker (pre-populates from SR/Project links)
         $time_entry_linker = new TimeEntryLinker();
         $time_entry_linker->register();
@@ -50,6 +62,10 @@ class AdminLoader {
 
         // Initialize Timer Service (timer start/stop, kill on trash)
         TimerService::register();
+
+        // Initialize Service Request services
+        ReferenceGenerator::register();
+        FormProcessor::register();
 
         // Register assets
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
