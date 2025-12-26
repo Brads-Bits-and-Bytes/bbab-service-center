@@ -5,6 +5,8 @@ namespace BBAB\ServiceCenter\Admin;
 
 use BBAB\ServiceCenter\Admin\Workbench\WorkbenchPage;
 use BBAB\ServiceCenter\Admin\Pages\ClientHealthDashboard;
+use BBAB\ServiceCenter\Modules\TimeTracking\TimeEntryService;
+use BBAB\ServiceCenter\Modules\TimeTracking\TimerService;
 use BBAB\ServiceCenter\Utils\Logger;
 
 /**
@@ -42,6 +44,12 @@ class AdminLoader {
         // Initialize Time Entry Linker (pre-populates from SR/Project links)
         $time_entry_linker = new TimeEntryLinker();
         $time_entry_linker->register();
+
+        // Initialize Time Entry Service (hours calculation, orphan prevention, transient linking)
+        TimeEntryService::register();
+
+        // Initialize Timer Service (timer start/stop, kill on trash)
+        TimerService::register();
 
         // Register assets
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
