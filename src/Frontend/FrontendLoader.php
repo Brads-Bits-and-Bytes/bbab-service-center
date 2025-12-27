@@ -18,6 +18,7 @@ use BBAB\ServiceCenter\Frontend\Shortcodes\ServiceRequests\Detail as SRDetail;
 use BBAB\ServiceCenter\Frontend\Shortcodes\ServiceRequests\Attachments as SRAttachments;
 use BBAB\ServiceCenter\Frontend\Shortcodes\ServiceRequests\TimeEntries as SRTimeEntries;
 use BBAB\ServiceCenter\Frontend\Shortcodes\ServiceRequests\AccessControl as SRAccessControl;
+use BBAB\ServiceCenter\Frontend\Shortcodes\TimeTracking\EntriesDisplay as TEEntriesDisplay;
 use BBAB\ServiceCenter\Utils\Logger;
 
 /**
@@ -84,6 +85,8 @@ class FrontendLoader {
             SRDetail::class,
             SRAttachments::class,
             SRTimeEntries::class,
+            // Time Tracking shortcodes
+            TEEntriesDisplay::class,
         ];
 
         foreach ($shortcode_classes as $class) {
