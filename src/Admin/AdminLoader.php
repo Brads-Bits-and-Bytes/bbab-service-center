@@ -6,8 +6,16 @@ namespace BBAB\ServiceCenter\Admin;
 use BBAB\ServiceCenter\Admin\Workbench\WorkbenchPage;
 use BBAB\ServiceCenter\Admin\Pages\ClientHealthDashboard;
 use BBAB\ServiceCenter\Admin\Pages\SettingsPage;
+use BBAB\ServiceCenter\Admin\Columns\ServiceRequestColumns;
+use BBAB\ServiceCenter\Admin\Columns\TimeEntryColumns;
+use BBAB\ServiceCenter\Admin\RowActions\LogTimeAction;
+use BBAB\ServiceCenter\Admin\Metaboxes\ServiceRequestMetabox;
+use BBAB\ServiceCenter\Admin\Metaboxes\TimerMetabox;
+use BBAB\ServiceCenter\Admin\Metaboxes\TimeEntryReassignMetabox;
+use BBAB\ServiceCenter\Admin\GlobalTimerIndicator;
 use BBAB\ServiceCenter\Modules\TimeTracking\TimeEntryService;
 use BBAB\ServiceCenter\Modules\TimeTracking\TimerService;
+use BBAB\ServiceCenter\Modules\TimeTracking\TEReferenceGenerator;
 use BBAB\ServiceCenter\Modules\ServiceRequests\ReferenceGenerator;
 use BBAB\ServiceCenter\Modules\ServiceRequests\FormProcessor;
 use BBAB\ServiceCenter\Utils\Logger;
@@ -63,9 +71,27 @@ class AdminLoader {
         // Initialize Timer Service (timer start/stop, kill on trash)
         TimerService::register();
 
+        // Initialize TE Reference Generator (TE-0001 format)
+        TEReferenceGenerator::register();
+
         // Initialize Service Request services
         ReferenceGenerator::register();
         FormProcessor::register();
+
+        // Initialize admin columns and filters (Phase 4.3)
+        ServiceRequestColumns::register();
+        TimeEntryColumns::register();
+
+        // Initialize row actions (Phase 4.3)
+        LogTimeAction::register();
+
+        // Initialize metaboxes (Phase 4.3)
+        ServiceRequestMetabox::register();
+        TimerMetabox::register();
+        TimeEntryReassignMetabox::register();
+
+        // Initialize global timer indicator (Phase 4.3)
+        GlobalTimerIndicator::register();
 
         // Register assets
         add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
@@ -82,10 +108,20 @@ class AdminLoader {
      * @param string $hook Current admin page hook
      */
     public function enqueueAssets(string $hook): void {
-        // Only load on our admin pages
+        $screen = get_current_screen();
+
+        // Load service center CSS on SR and TE screens
+        if ($screen && in_array($screen->post_type, ['service_request', 'time_entry'], true)) {
+            wp_enqueue_style(
+                'bbab-sc-service-center',
+                BBAB_SC_URL . 'assets/css/admin-service-center.css',
+                [],
+                BBAB_SC_VERSION
+            );
+        }
+
+        // Load workbench assets only on bbab pages
         if (strpos($hook, 'bbab-') === false && strpos($hook, 'bbab_') === false) {
-            // Check if it's a workbench page
-            $screen = get_current_screen();
             if (!$screen || strpos($screen->id, 'bbab') === false) {
                 return;
             }

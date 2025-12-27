@@ -564,4 +564,29 @@ class TimeEntryService {
 
         return !empty($sr) || !empty($project) || !empty($milestone);
     }
+
+    /**
+     * Get time entry IDs for a service request.
+     *
+     * More efficient than getForServiceRequest() when you only need IDs.
+     *
+     * @param int $sr_id Service request ID.
+     * @return array Array of time entry IDs.
+     */
+    public static function getEntriesForSR(int $sr_id): array {
+        global $wpdb;
+
+        $ids = $wpdb->get_col($wpdb->prepare("
+            SELECT pm.post_id
+            FROM {$wpdb->postmeta} pm
+            INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
+            WHERE pm.meta_key = 'related_service_request'
+            AND pm.meta_value = %d
+            AND p.post_status = 'publish'
+            AND p.post_type = 'time_entry'
+            ORDER BY pm.post_id DESC
+        ", $sr_id));
+
+        return array_map('intval', $ids);
+    }
 }

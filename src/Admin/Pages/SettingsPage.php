@@ -5,6 +5,7 @@ namespace BBAB\ServiceCenter\Admin\Pages;
 
 use BBAB\ServiceCenter\Utils\Settings;
 use BBAB\ServiceCenter\Utils\Logger;
+use BBAB\ServiceCenter\Modules\TimeTracking\TEReferenceGenerator;
 
 /**
  * Plugin Settings Page.
@@ -274,6 +275,159 @@ class SettingsPage {
 
                 <?php submit_button(__('Save Settings', 'bbab-service-center')); ?>
             </form>
+
+            <!-- Maintenance Section (separate from main form) -->
+            <hr style="margin-top: 40px;">
+
+            <h2><?php esc_html_e('Maintenance', 'bbab-service-center'); ?></h2>
+            <p class="description"><?php esc_html_e('One-time maintenance tasks for data migrations and cleanup.', 'bbab-service-center'); ?></p>
+
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">
+                        <?php esc_html_e('Time Entry References', 'bbab-service-center'); ?>
+                    </th>
+                    <td>
+                        <?php
+                        $te_count = TEReferenceGenerator::getCountWithoutReference();
+                        ?>
+                        <p style="margin-bottom: 10px;">
+                            <?php if ($te_count > 0): ?>
+                                <span style="color: #b32d2e; font-weight: 500;">
+                                    <?php echo esc_html(sprintf('%d time entries need reference numbers.', $te_count)); ?>
+                                </span>
+                            <?php else: ?>
+                                <span style="color: #1e8449;">
+                                    <?php esc_html_e('All time entries have reference numbers.', 'bbab-service-center'); ?>
+                                </span>
+                            <?php endif; ?>
+                        </p>
+
+                        <button type="button"
+                                id="bbab-backfill-te-refs"
+                                class="button button-secondary"
+                                <?php echo $te_count === 0 ? 'disabled' : ''; ?>>
+                            <?php esc_html_e('Backfill TE References', 'bbab-service-center'); ?>
+                        </button>
+                        <span id="bbab-backfill-status" style="margin-left: 10px;"></span>
+
+                        <p class="description" style="margin-top: 8px;">
+                            <?php esc_html_e('Assigns TE-XXXX reference numbers to existing time entries that don\'t have one. Numbers are assigned chronologically (oldest entry gets the lowest number).', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <?php
+                $orphaned_count = TEReferenceGenerator::getOrphanedTeReferenceCount();
+                if ($orphaned_count > 0):
+                ?>
+                <tr>
+                    <th scope="row">
+                        <?php esc_html_e('Cleanup Orphaned Meta', 'bbab-service-center'); ?>
+                    </th>
+                    <td>
+                        <p style="margin-bottom: 10px;">
+                            <span style="color: #b32d2e; font-weight: 500;">
+                                <?php echo esc_html(sprintf('%d orphaned te_reference meta values found.', $orphaned_count)); ?>
+                            </span>
+                        </p>
+
+                        <button type="button"
+                                id="bbab-cleanup-te-refs"
+                                class="button button-secondary">
+                            <?php esc_html_e('Delete Orphaned Meta', 'bbab-service-center'); ?>
+                        </button>
+                        <span id="bbab-cleanup-status" style="margin-left: 10px;"></span>
+
+                        <p class="description" style="margin-top: 8px;">
+                            <?php esc_html_e('Removes incorrectly created te_reference meta values. This is safe - these values are not used.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <?php endif; ?>
+            </table>
+
+            <script>
+            jQuery(document).ready(function($) {
+                $('#bbab-backfill-te-refs').on('click', function() {
+                    var $btn = $(this);
+                    var $status = $('#bbab-backfill-status');
+
+                    if (!confirm('This will assign reference numbers to all time entries without one. Continue?')) {
+                        return;
+                    }
+
+                    $btn.prop('disabled', true);
+                    $status.html('<span style="color: #666;">Processing...</span>');
+
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'bbab_sc_backfill_te_refs',
+                            nonce: '<?php echo wp_create_nonce('bbab_sc_backfill_te_refs'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                $status.html('<span style="color: #1e8449; font-weight: 500;">' + response.data.message + '</span>');
+                                // Keep button disabled since work is done
+                                if (response.data.processed > 0) {
+                                    setTimeout(function() {
+                                        location.reload();
+                                    }, 2000);
+                                }
+                            } else {
+                                $status.html('<span style="color: #b32d2e;">Error: ' + response.data.message + '</span>');
+                                $btn.prop('disabled', false);
+                            }
+                        },
+                        error: function() {
+                            $status.html('<span style="color: #b32d2e;">Request failed. Check console for details.</span>');
+                            $btn.prop('disabled', false);
+                        }
+                    });
+                });
+
+                // Cleanup orphaned te_reference values
+                $('#bbab-cleanup-te-refs').on('click', function() {
+                    var $btn = $(this);
+                    var $status = $('#bbab-cleanup-status');
+
+                    if (!confirm('This will delete orphaned te_reference meta values. Continue?')) {
+                        return;
+                    }
+
+                    $btn.prop('disabled', true);
+                    $status.html('<span style="color: #666;">Cleaning up...</span>');
+
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'bbab_sc_cleanup_te_refs',
+                            nonce: '<?php echo wp_create_nonce('bbab_sc_cleanup_te_refs'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                $status.html('<span style="color: #1e8449; font-weight: 500;">' + response.data.message + '</span>');
+                                if (response.data.deleted > 0) {
+                                    setTimeout(function() {
+                                        location.reload();
+                                    }, 2000);
+                                }
+                            } else {
+                                $status.html('<span style="color: #b32d2e;">Error: ' + response.data.message + '</span>');
+                                $btn.prop('disabled', false);
+                            }
+                        },
+                        error: function() {
+                            $status.html('<span style="color: #b32d2e;">Request failed. Check console for details.</span>');
+                            $btn.prop('disabled', false);
+                        }
+                    });
+                });
+            });
+            </script>
 
             <hr style="margin-top: 40px;">
 
