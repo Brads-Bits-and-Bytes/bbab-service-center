@@ -311,4 +311,14 @@ class LineItemService {
     public static function getCount(int $invoice_id): int {
         return count(self::getForInvoice($invoice_id));
     }
+
+    /**
+     * Alias for getCount - more descriptive name for column usage.
+     *
+     * @param int $invoice_id Invoice post ID.
+     * @return int Count.
+     */
+    public static function getCountForInvoice(int $invoice_id): int {
+        return self::getCount($invoice_id);
+    }
 }

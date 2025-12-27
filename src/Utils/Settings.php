@@ -49,6 +49,7 @@ class Settings {
 
         // Business Logic (safe defaults)
         'default_free_hours' => 2.0,
+        'hourly_rate' => 30.00,  // Standard hourly rate for support/overage billing
         'billing_day_of_month' => 1,
         'timezone' => 'America/Chicago',
 

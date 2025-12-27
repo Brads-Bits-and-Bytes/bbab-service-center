@@ -8,16 +8,16 @@ use BBAB\ServiceCenter\Modules\Billing\LineItemService;
 use BBAB\ServiceCenter\Utils\Logger;
 
 /**
- * Custom admin columns and filters for Invoices.
+ * Custom admin columns, filters, and row actions for Invoices.
  *
  * Handles:
  * - Custom column definitions and rendering
  * - Admin list filters (Org, Status, Type)
  * - Sortable columns
- * - Column styles
+ * - Row actions (Finalize, Mark Paid, Cancel, etc.)
+ * - Admin notices for actions
  *
- * This is a foundation class for Phase 5.3.
- * Full migration from snippet 1256/1257 will happen in Phase 6.1.
+ * Migrated from snippets: 1256, 1257
  */
 class InvoiceColumns {
 
@@ -33,6 +33,20 @@ class InvoiceColumns {
         // Filters
         add_action('restrict_manage_posts', [self::class, 'renderFilters']);
         add_action('pre_get_posts', [self::class, 'applyFilters']);
+
+        // Row actions
+        add_filter('post_row_actions', [self::class, 'addRowActions'], 10, 2);
+
+        // Handle row action requests
+        add_action('admin_post_bbab_finalize_invoice', [self::class, 'handleFinalize']);
+        add_action('admin_post_bbab_mark_invoice_paid', [self::class, 'handleMarkPaid']);
+        add_action('admin_post_bbab_mark_invoice_overdue', [self::class, 'handleMarkOverdue']);
+        add_action('admin_post_bbab_cancel_invoice', [self::class, 'handleCancel']);
+        add_action('admin_post_bbab_revert_invoice_draft', [self::class, 'handleRevertToDraft']);
+        add_action('admin_post_bbab_record_partial_payment', [self::class, 'handleRecordPartial']);
+
+        // Admin notices
+        add_action('admin_notices', [self::class, 'showAdminNotices']);
 
         // Admin styles
         add_action('admin_head', [self::class, 'renderStyles']);
@@ -52,12 +66,14 @@ class InvoiceColumns {
         $new_columns['invoice_number'] = 'Invoice #';
         $new_columns['invoice_date'] = 'Date';
         $new_columns['organization'] = 'Client';
+        $new_columns['related_source'] = 'Source';
         $new_columns['invoice_type'] = 'Type';
         $new_columns['amount'] = 'Amount';
         $new_columns['amount_paid'] = 'Paid';
         $new_columns['balance'] = 'Balance';
         $new_columns['invoice_status'] = 'Status';
         $new_columns['due_date'] = 'Due Date';
+        $new_columns['line_items'] = 'Items';
         $new_columns['pdf'] = 'PDF';
 
         return $new_columns;
@@ -76,7 +92,7 @@ class InvoiceColumns {
                 if ($number) {
                     echo '<span class="invoice-number">' . esc_html($number) . '</span>';
                 } else {
-                    echo '<span class="no-number">—</span>';
+                    echo '<span class="no-number"><em>Pending</em></span>';
                 }
                 break;
 
@@ -99,6 +115,10 @@ class InvoiceColumns {
                 }
                 break;
 
+            case 'related_source':
+                self::renderSourceColumn($post_id);
+                break;
+
             case 'invoice_type':
                 $type = InvoiceService::getType($post_id);
                 echo esc_html($type);
@@ -111,10 +131,16 @@ class InvoiceColumns {
 
             case 'amount_paid':
                 $paid = InvoiceService::getPaidAmount($post_id);
-                if ($paid > 0) {
+                $status = InvoiceService::getStatus($post_id);
+
+                // If paid, show full amount
+                if ($status === InvoiceService::STATUS_PAID) {
+                    $amount = InvoiceService::getAmount($post_id);
+                    echo '<span style="color: #1e8449;">$' . number_format($amount, 2) . '</span>';
+                } elseif ($paid > 0) {
                     echo '<span style="color: #1e8449;">$' . number_format($paid, 2) . '</span>';
                 } else {
-                    echo '<span style="color: #999;">$0.00</span>';
+                    echo '<span style="color: #999;">—</span>';
                 }
                 break;
 
@@ -147,6 +173,16 @@ class InvoiceColumns {
                 }
                 break;
 
+            case 'line_items':
+                $count = LineItemService::getCountForInvoice($post_id);
+                if ($count > 0) {
+                    $url = admin_url('edit.php?post_type=invoice_line_item&filter_invoice=' . $post_id);
+                    echo '<a href="' . esc_url($url) . '">' . $count . '</a>';
+                } else {
+                    echo '<span style="color: #999;">0</span>';
+                }
+                break;
+
             case 'pdf':
                 $pdf = InvoiceService::getPdf($post_id);
                 if ($pdf && !empty($pdf['url'])) {
@@ -159,15 +195,57 @@ class InvoiceColumns {
     }
 
     /**
+     * Render the source column (Monthly Report, Milestone, or Project).
+     *
+     * @param int $post_id Invoice post ID.
+     */
+    private static function renderSourceColumn(int $post_id): void {
+        $related_report = get_post_meta($post_id, 'related_monthly_report', true);
+        $related_project = get_post_meta($post_id, 'related_project', true);
+        $related_milestone = get_post_meta($post_id, 'related_milestone', true);
+
+        if (!empty($related_milestone)) {
+            // Milestone: show ref + name
+            $ms_name = get_post_meta($related_milestone, 'milestone_name', true);
+            $ms_ref = get_post_meta($related_milestone, 'reference_number', true);
+            $edit_link = get_edit_post_link((int) $related_milestone);
+            $display = $ms_ref ? $ms_ref . ': ' . $ms_name : $ms_name;
+            echo '<a href="' . esc_url($edit_link) . '" title="Milestone">' . esc_html($display) . '</a>';
+        } elseif (!empty($related_project)) {
+            // Project: show ref + name
+            $proj_name = get_post_meta($related_project, 'project_name', true);
+            $proj_ref = get_post_meta($related_project, 'reference_number', true);
+            $edit_link = get_edit_post_link((int) $related_project);
+            $display = $proj_ref ? $proj_ref . ': ' . $proj_name : $proj_name;
+            echo '<a href="' . esc_url($edit_link) . '" title="Project">' . esc_html($display) . '</a>';
+        } elseif (!empty($related_report)) {
+            // Monthly Report: show org shortcode + report month
+            $report_month = get_post_meta($related_report, 'report_month', true);
+            $org_id = get_post_meta($related_report, 'organization', true);
+            $org_shortcode = '';
+            if ($org_id) {
+                $org_shortcode = get_post_meta($org_id, 'organization_shortcode', true);
+            }
+            $edit_link = get_edit_post_link((int) $related_report);
+            $display = $org_shortcode ? $org_shortcode . ': ' . $report_month : $report_month;
+            echo '<a href="' . esc_url($edit_link) . '" title="Monthly Report">' . esc_html($display ?: 'Report') . '</a>';
+        } else {
+            echo '<span style="color: #999;">—</span>';
+        }
+    }
+
+    /**
      * Define sortable columns.
      *
      * @param array $columns Sortable columns.
      * @return array Modified sortable columns.
      */
     public static function sortableColumns(array $columns): array {
+        $columns['invoice_number'] = 'invoice_number';
         $columns['invoice_date'] = 'invoice_date';
         $columns['due_date'] = 'due_date';
         $columns['amount'] = 'amount';
+        $columns['invoice_status'] = 'invoice_status';
         return $columns;
     }
 
@@ -283,7 +361,10 @@ class InvoiceColumns {
 
         // Handle sorting
         $orderby = $query->get('orderby');
-        if ($orderby === 'invoice_date') {
+        if ($orderby === 'invoice_number') {
+            $query->set('meta_key', 'invoice_number');
+            $query->set('orderby', 'meta_value');
+        } elseif ($orderby === 'invoice_date') {
             $query->set('meta_key', 'invoice_date');
             $query->set('orderby', 'meta_value');
         } elseif ($orderby === 'due_date') {
@@ -292,6 +373,246 @@ class InvoiceColumns {
         } elseif ($orderby === 'amount') {
             $query->set('meta_key', 'amount');
             $query->set('orderby', 'meta_value_num');
+        } elseif ($orderby === 'invoice_status') {
+            $query->set('meta_key', 'invoice_status');
+            $query->set('orderby', 'meta_value');
+        }
+    }
+
+    /**
+     * Add row actions to invoices.
+     *
+     * @param array    $actions Existing actions.
+     * @param \WP_Post $post    Post object.
+     * @return array Modified actions.
+     */
+    public static function addRowActions(array $actions, \WP_Post $post): array {
+        if ($post->post_type !== 'invoice') {
+            return $actions;
+        }
+
+        $status = InvoiceService::getStatus($post->ID);
+
+        // Finalize action (Draft -> Pending)
+        if ($status === InvoiceService::STATUS_DRAFT) {
+            $url = wp_nonce_url(
+                admin_url('admin-post.php?action=bbab_finalize_invoice&invoice_id=' . $post->ID),
+                'bbab_finalize_invoice_' . $post->ID
+            );
+            $actions['finalize'] = '<a href="' . esc_url($url) . '" style="color: #2271b1; font-weight: 500;">Finalize</a>';
+        }
+
+        // Mark Paid action (Pending/Partial/Overdue -> Paid)
+        if (in_array($status, [InvoiceService::STATUS_PENDING, InvoiceService::STATUS_PARTIAL, InvoiceService::STATUS_OVERDUE], true)) {
+            $url = wp_nonce_url(
+                admin_url('admin-post.php?action=bbab_mark_invoice_paid&invoice_id=' . $post->ID),
+                'bbab_mark_paid_' . $post->ID
+            );
+            $actions['mark_paid'] = '<a href="' . esc_url($url) . '" style="color: #00a32a;">Mark Paid</a>';
+        }
+
+        // Record Partial Payment (Pending only)
+        if ($status === InvoiceService::STATUS_PENDING) {
+            $url = wp_nonce_url(
+                admin_url('admin-post.php?action=bbab_record_partial_payment&invoice_id=' . $post->ID),
+                'bbab_partial_payment_' . $post->ID
+            );
+            $actions['partial'] = '<a href="' . esc_url($url) . '">Record Payment</a>';
+        }
+
+        // Mark Overdue action (Pending -> Overdue, if past due)
+        if ($status === InvoiceService::STATUS_PENDING) {
+            $due_date = InvoiceService::getDueDate($post->ID);
+            if ($due_date && strtotime($due_date) < strtotime('today')) {
+                $url = wp_nonce_url(
+                    admin_url('admin-post.php?action=bbab_mark_invoice_overdue&invoice_id=' . $post->ID),
+                    'bbab_mark_overdue_' . $post->ID
+                );
+                $actions['mark_overdue'] = '<a href="' . esc_url($url) . '" style="color: #d63638;">Mark Overdue</a>';
+            }
+        }
+
+        // Cancel action (any status except Paid/Void)
+        if (!in_array($status, [InvoiceService::STATUS_PAID, InvoiceService::STATUS_VOID], true)) {
+            $url = wp_nonce_url(
+                admin_url('admin-post.php?action=bbab_cancel_invoice&invoice_id=' . $post->ID),
+                'bbab_cancel_invoice_' . $post->ID
+            );
+            $actions['cancel'] = '<a href="' . esc_url($url) . '" style="color: #a00;" onclick="return confirm(\'Are you sure you want to cancel this invoice?\');">Cancel</a>';
+        }
+
+        // Revert to Draft (Pending only)
+        if ($status === InvoiceService::STATUS_PENDING) {
+            $url = wp_nonce_url(
+                admin_url('admin-post.php?action=bbab_revert_invoice_draft&invoice_id=' . $post->ID),
+                'bbab_revert_draft_' . $post->ID
+            );
+            $actions['revert_draft'] = '<a href="' . esc_url($url) . '" style="color: #666;">Revert to Draft</a>';
+        }
+
+        return $actions;
+    }
+
+    /**
+     * Handle Finalize action.
+     */
+    public static function handleFinalize(): void {
+        $invoice_id = isset($_GET['invoice_id']) ? (int) $_GET['invoice_id'] : 0;
+
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bbab_finalize_invoice_' . $invoice_id)) {
+            wp_die('Security check failed');
+        }
+
+        if (!current_user_can('edit_post', $invoice_id)) {
+            wp_die('Permission denied');
+        }
+
+        // Update status and set finalized date
+        update_post_meta($invoice_id, 'invoice_status', InvoiceService::STATUS_PENDING);
+        update_post_meta($invoice_id, 'finalized_date', current_time('Y-m-d'));
+
+        Logger::debug('InvoiceColumns', 'Invoice finalized', ['invoice_id' => $invoice_id]);
+
+        // TODO: Generate PDF when PDFService is migrated (Phase 6.2)
+        // For now, just redirect with success message
+        wp_redirect(admin_url('edit.php?post_type=invoice&finalized=1'));
+        exit;
+    }
+
+    /**
+     * Handle Mark Paid action.
+     */
+    public static function handleMarkPaid(): void {
+        $invoice_id = isset($_GET['invoice_id']) ? (int) $_GET['invoice_id'] : 0;
+
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bbab_mark_paid_' . $invoice_id)) {
+            wp_die('Security check failed');
+        }
+
+        if (!current_user_can('edit_post', $invoice_id)) {
+            wp_die('Permission denied');
+        }
+
+        $amount = InvoiceService::getAmount($invoice_id);
+
+        update_post_meta($invoice_id, 'invoice_status', InvoiceService::STATUS_PAID);
+        update_post_meta($invoice_id, 'amount_paid', $amount);
+        update_post_meta($invoice_id, 'payment_date', current_time('Y-m-d'));
+
+        Logger::debug('InvoiceColumns', 'Invoice marked paid', ['invoice_id' => $invoice_id, 'amount' => $amount]);
+
+        wp_redirect(admin_url('edit.php?post_type=invoice&marked_paid=1'));
+        exit;
+    }
+
+    /**
+     * Handle Mark Overdue action.
+     */
+    public static function handleMarkOverdue(): void {
+        $invoice_id = isset($_GET['invoice_id']) ? (int) $_GET['invoice_id'] : 0;
+
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bbab_mark_overdue_' . $invoice_id)) {
+            wp_die('Security check failed');
+        }
+
+        if (!current_user_can('edit_post', $invoice_id)) {
+            wp_die('Permission denied');
+        }
+
+        update_post_meta($invoice_id, 'invoice_status', InvoiceService::STATUS_OVERDUE);
+
+        Logger::debug('InvoiceColumns', 'Invoice marked overdue', ['invoice_id' => $invoice_id]);
+
+        wp_redirect(admin_url('edit.php?post_type=invoice&marked_overdue=1'));
+        exit;
+    }
+
+    /**
+     * Handle Cancel action.
+     */
+    public static function handleCancel(): void {
+        $invoice_id = isset($_GET['invoice_id']) ? (int) $_GET['invoice_id'] : 0;
+
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bbab_cancel_invoice_' . $invoice_id)) {
+            wp_die('Security check failed');
+        }
+
+        if (!current_user_can('edit_post', $invoice_id)) {
+            wp_die('Permission denied');
+        }
+
+        update_post_meta($invoice_id, 'invoice_status', InvoiceService::STATUS_VOID);
+
+        Logger::debug('InvoiceColumns', 'Invoice cancelled', ['invoice_id' => $invoice_id]);
+
+        wp_redirect(admin_url('edit.php?post_type=invoice&cancelled=1'));
+        exit;
+    }
+
+    /**
+     * Handle Revert to Draft action.
+     */
+    public static function handleRevertToDraft(): void {
+        $invoice_id = isset($_GET['invoice_id']) ? (int) $_GET['invoice_id'] : 0;
+
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bbab_revert_draft_' . $invoice_id)) {
+            wp_die('Security check failed');
+        }
+
+        if (!current_user_can('edit_post', $invoice_id)) {
+            wp_die('Permission denied');
+        }
+
+        update_post_meta($invoice_id, 'invoice_status', InvoiceService::STATUS_DRAFT);
+        update_post_meta($invoice_id, 'finalized_date', '');
+
+        Logger::debug('InvoiceColumns', 'Invoice reverted to draft', ['invoice_id' => $invoice_id]);
+
+        wp_redirect(admin_url('edit.php?post_type=invoice&reverted=1'));
+        exit;
+    }
+
+    /**
+     * Handle Record Partial Payment - redirects to edit screen.
+     */
+    public static function handleRecordPartial(): void {
+        $invoice_id = isset($_GET['invoice_id']) ? (int) $_GET['invoice_id'] : 0;
+
+        if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'bbab_partial_payment_' . $invoice_id)) {
+            wp_die('Security check failed');
+        }
+
+        // Redirect to edit screen where user can enter partial amount
+        wp_redirect(admin_url('post.php?post=' . $invoice_id . '&action=edit&partial_payment=1'));
+        exit;
+    }
+
+    /**
+     * Show admin notices for row actions.
+     */
+    public static function showAdminNotices(): void {
+        $screen = get_current_screen();
+        if (!$screen || $screen->post_type !== 'invoice') {
+            return;
+        }
+
+        if (isset($_GET['finalized'])) {
+            echo '<div class="notice notice-success is-dismissible"><p><strong>Invoice finalized!</strong> It is now visible to the client.</p></div>';
+        }
+        if (isset($_GET['marked_paid'])) {
+            echo '<div class="notice notice-success is-dismissible"><p><strong>Invoice marked as paid.</strong></p></div>';
+        }
+        if (isset($_GET['marked_overdue'])) {
+            echo '<div class="notice notice-warning is-dismissible"><p><strong>Invoice marked as overdue.</strong></p></div>';
+        }
+        if (isset($_GET['cancelled'])) {
+            echo '<div class="notice notice-warning is-dismissible"><p><strong>Invoice cancelled.</strong></p></div>';
+        }
+        if (isset($_GET['reverted'])) {
+            echo '<div class="notice notice-info is-dismissible"><p><strong>Invoice reverted to draft.</strong></p></div>';
+        }
+        if (isset($_GET['partial_payment'])) {
+            echo '<div class="notice notice-info is-dismissible"><p>Update the "Amount Paid" field below and set status to "Partial", then save.</p></div>';
         }
     }
 
@@ -316,22 +637,29 @@ class InvoiceColumns {
             }
 
             /* Column widths */
-            .column-invoice_number { width: 130px; }
-            .column-invoice_date { width: 100px; }
-            .column-organization { width: 150px; }
-            .column-invoice_type { width: 100px; }
-            .column-amount { width: 90px; text-align: right; }
-            .column-amount_paid { width: 90px; text-align: right; }
-            .column-balance { width: 90px; text-align: right; }
-            .column-invoice_status { width: 100px; }
-            .column-due_date { width: 100px; }
-            .column-pdf { width: 50px; text-align: center; }
+            .column-invoice_number { width: 120px; }
+            .column-invoice_date { width: 90px; }
+            .column-organization { width: 130px; }
+            .column-related_source { width: 150px; }
+            .column-invoice_type { width: 80px; }
+            .column-amount { width: 85px; text-align: right; }
+            .column-amount_paid { width: 85px; text-align: right; }
+            .column-balance { width: 85px; text-align: right; }
+            .column-invoice_status { width: 90px; }
+            .column-due_date { width: 90px; }
+            .column-line_items { width: 50px; text-align: center; }
+            .column-pdf { width: 40px; text-align: center; }
 
             /* Right-align monetary columns */
             .column-amount,
             .column-amount_paid,
             .column-balance {
                 text-align: right !important;
+            }
+
+            /* Line items center */
+            .column-line_items {
+                text-align: center !important;
             }
         </style>';
     }

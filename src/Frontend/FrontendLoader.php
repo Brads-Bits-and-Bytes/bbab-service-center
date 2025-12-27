@@ -29,6 +29,7 @@ use BBAB\ServiceCenter\Frontend\Shortcodes\Milestones\BackToProject;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Milestones\DueDate as MilestoneDueDate;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\ProjectsLink;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Billing\LinkedInvoices;
+use BBAB\ServiceCenter\Frontend\Shortcodes\Billing\MonthlyReportShortcodes;
 use BBAB\ServiceCenter\Utils\Logger;
 
 /**
@@ -112,6 +113,8 @@ class FrontendLoader {
             MilestoneDueDate::class,
             // Billing shortcodes (Phase 5.4)
             LinkedInvoices::class,
+            // Monthly Report shortcodes (Phase 6.1)
+            MonthlyReportShortcodes::class,
         ];
 
         foreach ($shortcode_classes as $class) {

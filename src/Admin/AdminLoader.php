@@ -12,7 +12,9 @@ use BBAB\ServiceCenter\Admin\Columns\ProjectMilestoneRefColumns;
 use BBAB\ServiceCenter\Admin\Columns\ProjectColumns;
 use BBAB\ServiceCenter\Admin\Columns\MilestoneColumns;
 use BBAB\ServiceCenter\Admin\Columns\InvoiceColumns;
+use BBAB\ServiceCenter\Admin\Columns\LineItemColumns;
 use BBAB\ServiceCenter\Admin\RowActions\LogTimeAction;
+use BBAB\ServiceCenter\Admin\RowActions\MonthlyReportActions;
 use BBAB\ServiceCenter\Admin\Metaboxes\ServiceRequestMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\TimerMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\TimeEntryReassignMetabox;
@@ -122,11 +124,17 @@ class AdminLoader {
         // Initialize Invoice columns (Phase 5.3)
         InvoiceColumns::register();
 
+        // Initialize Line Item columns (Phase 6.1)
+        LineItemColumns::register();
+
         // Initialize Project/Milestone reference metaboxes (Phase 5.1)
         ProjectMilestoneRefColumns::register();
 
         // Initialize row actions (Phase 4.3)
         LogTimeAction::register();
+
+        // Initialize Monthly Report row actions (Phase 6.1)
+        MonthlyReportActions::register();
 
         // Initialize metaboxes (Phase 4.3)
         ServiceRequestMetabox::register();
