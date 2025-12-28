@@ -47,6 +47,13 @@ class Settings {
         'simulation_enabled' => true,
         'stripe_test_mode' => true,
 
+        // Stripe API Keys
+        'stripe_test_publishable_key' => '',
+        'stripe_test_secret_key' => '',
+        'stripe_live_publishable_key' => '',
+        'stripe_live_secret_key' => '',
+        'stripe_webhook_secret' => '',
+
         // Business Logic (safe defaults)
         'default_free_hours' => 2.0,
         'hourly_rate' => 30.00,  // Standard hourly rate for support/overage billing
@@ -171,5 +178,46 @@ class Settings {
     public static function getAll(): array {
         $saved = get_option('bbab_sc_settings', []);
         return array_merge(self::DEFAULTS, $saved);
+    }
+
+    /**
+     * Check if Stripe is in test mode.
+     */
+    public static function isStripeTestMode(): bool {
+        return (bool) self::get('stripe_test_mode', true);
+    }
+
+    /**
+     * Get the active Stripe publishable key (based on test mode).
+     */
+    public static function getStripePublishableKey(): string {
+        $key = self::isStripeTestMode()
+            ? 'stripe_test_publishable_key'
+            : 'stripe_live_publishable_key';
+        return (string) self::get($key, '');
+    }
+
+    /**
+     * Get the active Stripe secret key (based on test mode).
+     */
+    public static function getStripeSecretKey(): string {
+        $key = self::isStripeTestMode()
+            ? 'stripe_test_secret_key'
+            : 'stripe_live_secret_key';
+        return (string) self::get($key, '');
+    }
+
+    /**
+     * Get the Stripe webhook signing secret.
+     */
+    public static function getStripeWebhookSecret(): string {
+        return (string) self::get('stripe_webhook_secret', '');
+    }
+
+    /**
+     * Check if Stripe is configured (has at least secret key).
+     */
+    public static function isStripeConfigured(): bool {
+        return !empty(self::getStripeSecretKey());
     }
 }
