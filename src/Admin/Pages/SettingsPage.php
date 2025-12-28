@@ -13,8 +13,9 @@ use BBAB\ServiceCenter\Cron\ForgottenTimerHandler;
  *
  * Provides a centralized settings interface under Brad's Workbench.
  * Uses the Settings utility class for storage (bbab_sc_settings option).
+ * Organized into tabs for better UX.
  *
- * Partially migrated from: WPCode Snippet #2359
+ * Migrated from: WPCode Snippet #2359
  */
 class SettingsPage {
 
@@ -27,6 +28,18 @@ class SettingsPage {
      * Option name (matches Settings utility class).
      */
     private const OPTION_NAME = 'bbab_sc_settings';
+
+    /**
+     * Available tabs.
+     */
+    private const TABS = [
+        'general' => 'General',
+        'service-requests' => 'Service Requests',
+        'time-tracking' => 'Time Tracking',
+        'billing' => 'Billing',
+        'stripe' => 'Stripe',
+        'maintenance' => 'Maintenance',
+    ];
 
     /**
      * Register hooks.
@@ -76,6 +89,11 @@ class SettingsPage {
     public function sanitizeSettings(array $input): array {
         // Get existing settings to preserve values we're not editing
         $existing = get_option(self::OPTION_NAME, []);
+
+        // Sanitize General settings
+        if (isset($input['service_center_name'])) {
+            $existing['service_center_name'] = sanitize_text_field($input['service_center_name']);
+        }
 
         // Sanitize Service Request settings
         if (isset($input['sr_form_id'])) {
@@ -146,6 +164,16 @@ class SettingsPage {
     }
 
     /**
+     * Get current active tab.
+     *
+     * @return string Tab slug.
+     */
+    private function getCurrentTab(): string {
+        $tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'general';
+        return array_key_exists($tab, self::TABS) ? $tab : 'general';
+    }
+
+    /**
      * Render the settings page.
      */
     public function renderPage(): void {
@@ -164,609 +192,78 @@ class SettingsPage {
         }
 
         $settings = Settings::getAll();
+        $current_tab = $this->getCurrentTab();
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('Service Center Settings', 'bbab-service-center'); ?></h1>
 
             <?php settings_errors('bbab_sc_messages'); ?>
 
-            <form method="post" action="options.php">
-                <?php settings_fields(self::OPTION_GROUP); ?>
+            <nav class="nav-tab-wrapper">
+                <?php foreach (self::TABS as $slug => $label): ?>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=bbab-settings&tab=' . $slug)); ?>"
+                       class="nav-tab <?php echo $current_tab === $slug ? 'nav-tab-active' : ''; ?>">
+                        <?php echo esc_html($label); ?>
+                    </a>
+                <?php endforeach; ?>
+            </nav>
 
-                <table class="form-table" role="presentation">
+            <div class="bbab-settings-content" style="margin-top: 20px;">
+                <?php
+                switch ($current_tab) {
+                    case 'general':
+                        $this->renderGeneralTab($settings);
+                        break;
+                    case 'service-requests':
+                        $this->renderServiceRequestsTab($settings);
+                        break;
+                    case 'time-tracking':
+                        $this->renderTimeTrackingTab($settings);
+                        break;
+                    case 'billing':
+                        $this->renderBillingTab($settings);
+                        break;
+                    case 'stripe':
+                        $this->renderStripeTab($settings);
+                        break;
+                    case 'maintenance':
+                        $this->renderMaintenanceTab($settings);
+                        break;
+                }
+                ?>
+            </div>
+        </div>
+        <?php
+    }
 
-                    <!-- Service Requests Section -->
-                    <tr>
-                        <th colspan="2" style="padding-bottom: 0;">
-                            <h2 style="margin: 0; padding: 10px 0; border-bottom: 1px solid #ccc;">
-                                Service Requests
-                            </h2>
-                        </th>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="sr_form_id"><?php esc_html_e('WPForms Form ID', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="number"
-                                   id="sr_form_id"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[sr_form_id]"
-                                   value="<?php echo esc_attr($settings['sr_form_id'] ?? ''); ?>"
-                                   class="small-text"
-                                   min="0">
-                            <p class="description">
-                                <?php esc_html_e('The WPForms form ID for Service Request submissions. Find this in WPForms > All Forms.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="sr_notification_email"><?php esc_html_e('Notification Email', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="email"
-                                   id="sr_notification_email"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[sr_notification_email]"
-                                   value="<?php echo esc_attr($settings['sr_notification_email'] ?? ''); ?>"
-                                   class="regular-text">
-                            <p class="description">
-                                <?php esc_html_e('Email address to receive new Service Request notifications.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="sr_notification_subject"><?php esc_html_e('Email Subject', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text"
-                                   id="sr_notification_subject"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[sr_notification_subject]"
-                                   value="<?php echo esc_attr($settings['sr_notification_subject'] ?? ''); ?>"
-                                   class="large-text">
-                            <p class="description">
-                                <?php esc_html_e('Placeholders: {ref}, {org_name}, {user_name}, {type}, {subject}', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="sr_notification_body"><?php esc_html_e('Email Body', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <?php
-                            wp_editor(
-                                $settings['sr_notification_body'] ?? '',
-                                'sr_notification_body',
-                                [
-                                    'textarea_name' => self::OPTION_NAME . '[sr_notification_body]',
-                                    'textarea_rows' => 15,
-                                    'media_buttons' => false,
-                                    'teeny' => false,
-                                    'quicktags' => true,
-                                ]
-                            );
-                            ?>
-                            <p class="description" style="margin-top: 10px;">
-                                <?php esc_html_e('Placeholders you can use:', 'bbab-service-center'); ?><br>
-                                <code>{ref}</code> - Reference number (e.g., SR-0042)<br>
-                                <code>{org_name}</code> - Client organization name<br>
-                                <code>{user_name}</code> - Submitter's display name<br>
-                                <code>{user_email}</code> - Submitter's email<br>
-                                <code>{type}</code> - Request type (Support, Feature Request, etc.)<br>
-                                <code>{subject}</code> - Request subject line<br>
-                                <code>{description}</code> - Full request description<br>
-                                <code>{admin_link}</code> - Link to edit the SR in admin<br>
-                                <code>{attachments_note}</code> - Shows "Attachments: Yes" if files attached
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- General Section (Placeholder) -->
-                    <tr>
-                        <th colspan="2" style="padding-bottom: 0;">
-                            <h2 style="margin: 20px 0 0 0; padding: 10px 0; border-bottom: 1px solid #ccc;">
-                                General
-                                <span style="font-size: 12px; font-weight: normal; color: #666; margin-left: 10px;">
-                                    (Available after Phase 7 migration)
-                                </span>
-                            </h2>
-                        </th>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label><?php esc_html_e('Admin Menu Name', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text"
-                                   value="Service Center"
-                                   class="regular-text"
-                                   disabled>
-                            <p class="description" style="color: #999;">
-                                <?php esc_html_e('This setting is currently managed by snippet #2359. It will be migrated in Phase 7.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Time Tracking Section -->
-                    <tr>
-                        <th colspan="2" style="padding-bottom: 0;">
-                            <h2 style="margin: 20px 0 0 0; padding: 10px 0; border-bottom: 1px solid #ccc;">
-                                Time Tracking
-                            </h2>
-                        </th>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="forgotten_timer_email"><?php esc_html_e('Forgotten Timer Email', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="email"
-                                   id="forgotten_timer_email"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[forgotten_timer_email]"
-                                   value="<?php echo esc_attr($settings['forgotten_timer_email'] ?? ''); ?>"
-                                   class="regular-text">
-                            <p class="description">
-                                <?php esc_html_e('Email address to receive alerts when a timer has been running 4+ hours.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Billing Section -->
-                    <tr>
-                        <th colspan="2" style="padding-bottom: 0;">
-                            <h2 style="margin: 20px 0 0 0; padding: 10px 0; border-bottom: 1px solid #ccc;">
-                                Billing & Payments
-                            </h2>
-                        </th>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="zelle_email"><?php esc_html_e('Zelle Email', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="email"
-                                   id="zelle_email"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[zelle_email]"
-                                   value="<?php echo esc_attr($settings['zelle_email'] ?? 'wales108@gmail.com'); ?>"
-                                   class="regular-text">
-                            <p class="description">
-                                <?php esc_html_e('Email address displayed on invoices for Zelle payments.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="cc_fee_percentage"><?php esc_html_e('Credit Card Fee %', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="number"
-                                   id="cc_fee_percentage"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[cc_fee_percentage]"
-                                   value="<?php echo esc_attr($settings['cc_fee_percentage'] ?? 0.03); ?>"
-                                   class="small-text"
-                                   step="0.001"
-                                   min="0"
-                                   max="1">
-                            <p class="description">
-                                <?php esc_html_e('Credit card processing fee as decimal (e.g., 0.03 = 3%). Applied to card payments.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="hourly_rate"><?php esc_html_e('Default Hourly Rate', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="number"
-                                   id="hourly_rate"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[hourly_rate]"
-                                   value="<?php echo esc_attr($settings['hourly_rate'] ?? 30); ?>"
-                                   class="small-text"
-                                   step="0.01"
-                                   min="0">
-                            <p class="description">
-                                <?php esc_html_e('Default hourly rate for support/overage billing (per hour).', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="pdf_logo_url"><?php esc_html_e('PDF Logo URL', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="url"
-                                   id="pdf_logo_url"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[pdf_logo_url]"
-                                   value="<?php echo esc_attr($settings['pdf_logo_url'] ?? ''); ?>"
-                                   class="large-text">
-                            <p class="description">
-                                <?php esc_html_e('Full URL to logo image for invoice PDFs. Leave blank for default.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Stripe Payments Section -->
-                    <tr>
-                        <th colspan="2" style="padding-bottom: 0;">
-                            <h2 style="margin: 20px 0 0 0; padding: 10px 0; border-bottom: 1px solid #ccc;">
-                                Stripe Payments
-                            </h2>
-                        </th>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <?php esc_html_e('Test Mode', 'bbab-service-center'); ?>
-                        </th>
-                        <td>
-                            <label>
-                                <input type="checkbox"
-                                       name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_test_mode]"
-                                       value="1"
-                                       <?php checked($settings['stripe_test_mode'] ?? true); ?>>
-                                <?php esc_html_e('Use Stripe Test Mode (recommended during development)', 'bbab-service-center'); ?>
-                            </label>
-                            <p class="description">
-                                <?php esc_html_e('When enabled, uses test API keys. Uncheck for live payments.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_test_publishable_key"><?php esc_html_e('Test Publishable Key', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text"
-                                   id="stripe_test_publishable_key"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_test_publishable_key]"
-                                   value="<?php echo esc_attr($settings['stripe_test_publishable_key'] ?? ''); ?>"
-                                   class="large-text"
-                                   placeholder="pk_test_...">
-                            <p class="description">
-                                <?php esc_html_e('Starts with pk_test_', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_test_secret_key"><?php esc_html_e('Test Secret Key', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <?php
-                            $test_secret = $settings['stripe_test_secret_key'] ?? '';
-                            $test_secret_masked = !empty($test_secret) ? substr($test_secret, 0, 12) . '...' . substr($test_secret, -4) : '';
-                            ?>
-                            <input type="password"
-                                   id="stripe_test_secret_key"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_test_secret_key]"
-                                   value="<?php echo esc_attr($test_secret); ?>"
-                                   class="large-text"
-                                   placeholder="sk_test_..."
-                                   autocomplete="off">
-                            <?php if (!empty($test_secret_masked)): ?>
-                                <p class="description" style="color: #1e8449;">
-                                    <?php echo esc_html('Currently set: ' . $test_secret_masked); ?>
-                                </p>
-                            <?php else: ?>
-                                <p class="description">
-                                    <?php esc_html_e('Starts with sk_test_ - Keep this secret!', 'bbab-service-center'); ?>
-                                </p>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_live_publishable_key"><?php esc_html_e('Live Publishable Key', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <input type="text"
-                                   id="stripe_live_publishable_key"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_live_publishable_key]"
-                                   value="<?php echo esc_attr($settings['stripe_live_publishable_key'] ?? ''); ?>"
-                                   class="large-text"
-                                   placeholder="pk_live_...">
-                            <p class="description">
-                                <?php esc_html_e('Starts with pk_live_ - For production use', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_live_secret_key"><?php esc_html_e('Live Secret Key', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <?php
-                            $live_secret = $settings['stripe_live_secret_key'] ?? '';
-                            $live_secret_masked = !empty($live_secret) ? substr($live_secret, 0, 12) . '...' . substr($live_secret, -4) : '';
-                            ?>
-                            <input type="password"
-                                   id="stripe_live_secret_key"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_live_secret_key]"
-                                   value="<?php echo esc_attr($live_secret); ?>"
-                                   class="large-text"
-                                   placeholder="sk_live_..."
-                                   autocomplete="off">
-                            <?php if (!empty($live_secret_masked)): ?>
-                                <p class="description" style="color: #1e8449;">
-                                    <?php echo esc_html('Currently set: ' . $live_secret_masked); ?>
-                                </p>
-                            <?php else: ?>
-                                <p class="description">
-                                    <?php esc_html_e('Starts with sk_live_ - Keep this secret!', 'bbab-service-center'); ?>
-                                </p>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_webhook_secret"><?php esc_html_e('Webhook Signing Secret', 'bbab-service-center'); ?></label>
-                        </th>
-                        <td>
-                            <?php
-                            $webhook_secret = $settings['stripe_webhook_secret'] ?? '';
-                            $webhook_masked = !empty($webhook_secret) ? substr($webhook_secret, 0, 12) . '...' . substr($webhook_secret, -4) : '';
-                            ?>
-                            <input type="password"
-                                   id="stripe_webhook_secret"
-                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_webhook_secret]"
-                                   value="<?php echo esc_attr($webhook_secret); ?>"
-                                   class="large-text"
-                                   placeholder="whsec_..."
-                                   autocomplete="off">
-                            <?php if (!empty($webhook_masked)): ?>
-                                <p class="description" style="color: #1e8449;">
-                                    <?php echo esc_html('Currently set: ' . $webhook_masked); ?>
-                                </p>
-                            <?php else: ?>
-                                <p class="description">
-                                    <?php esc_html_e('Starts with whsec_ - Get this from Stripe Webhooks settings', 'bbab-service-center'); ?>
-                                </p>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <?php esc_html_e('Webhook Endpoint', 'bbab-service-center'); ?>
-                        </th>
-                        <td>
-                            <code style="display: block; padding: 8px 12px; background: #f0f0f1; border-radius: 4px;">
-                                <?php echo esc_url(rest_url('bbab/v1/stripe-webhook')); ?>
-                            </code>
-                            <p class="description" style="margin-top: 8px;">
-                                <?php esc_html_e('Add this URL in your Stripe Dashboard > Developers > Webhooks. Enable checkout.session.completed and payment_intent.succeeded events.', 'bbab-service-center'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                </table>
-
-                <?php submit_button(__('Save Settings', 'bbab-service-center')); ?>
-            </form>
-
-            <!-- Maintenance Section (separate from main form) -->
-            <hr style="margin-top: 40px;">
-
-            <h2><?php esc_html_e('Maintenance', 'bbab-service-center'); ?></h2>
-            <p class="description"><?php esc_html_e('One-time maintenance tasks for data migrations and cleanup.', 'bbab-service-center'); ?></p>
+    /**
+     * Render General tab.
+     *
+     * @param array $settings Current settings.
+     */
+    private function renderGeneralTab(array $settings): void {
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields(self::OPTION_GROUP); ?>
+            <input type="hidden" name="<?php echo esc_attr(self::OPTION_NAME); ?>[_tab]" value="general">
 
             <table class="form-table" role="presentation">
                 <tr>
                     <th scope="row">
-                        <?php esc_html_e('Time Entry References', 'bbab-service-center'); ?>
+                        <label for="service_center_name"><?php esc_html_e('Admin Menu Name', 'bbab-service-center'); ?></label>
                     </th>
                     <td>
-                        <?php
-                        $te_count = TEReferenceGenerator::getCountWithoutReference();
-                        ?>
-                        <p style="margin-bottom: 10px;">
-                            <?php if ($te_count > 0): ?>
-                                <span style="color: #b32d2e; font-weight: 500;">
-                                    <?php echo esc_html(sprintf('%d time entries need reference numbers.', $te_count)); ?>
-                                </span>
-                            <?php else: ?>
-                                <span style="color: #1e8449;">
-                                    <?php esc_html_e('All time entries have reference numbers.', 'bbab-service-center'); ?>
-                                </span>
-                            <?php endif; ?>
-                        </p>
-
-                        <button type="button"
-                                id="bbab-backfill-te-refs"
-                                class="button button-secondary"
-                                <?php echo $te_count === 0 ? 'disabled' : ''; ?>>
-                            <?php esc_html_e('Backfill TE References', 'bbab-service-center'); ?>
-                        </button>
-                        <span id="bbab-backfill-status" style="margin-left: 10px;"></span>
-
-                        <p class="description" style="margin-top: 8px;">
-                            <?php esc_html_e('Assigns TE-XXXX reference numbers to existing time entries that don\'t have one. Numbers are assigned chronologically (oldest entry gets the lowest number).', 'bbab-service-center'); ?>
-                        </p>
-                    </td>
-                </tr>
-
-                <?php
-                $orphaned_count = TEReferenceGenerator::getOrphanedTeReferenceCount();
-                if ($orphaned_count > 0):
-                ?>
-                <tr>
-                    <th scope="row">
-                        <?php esc_html_e('Cleanup Orphaned Meta', 'bbab-service-center'); ?>
-                    </th>
-                    <td>
-                        <p style="margin-bottom: 10px;">
-                            <span style="color: #b32d2e; font-weight: 500;">
-                                <?php echo esc_html(sprintf('%d orphaned te_reference meta values found.', $orphaned_count)); ?>
-                            </span>
-                        </p>
-
-                        <button type="button"
-                                id="bbab-cleanup-te-refs"
-                                class="button button-secondary">
-                            <?php esc_html_e('Delete Orphaned Meta', 'bbab-service-center'); ?>
-                        </button>
-                        <span id="bbab-cleanup-status" style="margin-left: 10px;"></span>
-
-                        <p class="description" style="margin-top: 8px;">
-                            <?php esc_html_e('Removes incorrectly created te_reference meta values. This is safe - these values are not used.', 'bbab-service-center'); ?>
-                        </p>
-                    </td>
-                </tr>
-                <?php endif; ?>
-
-                <tr>
-                    <th scope="row">
-                        <?php esc_html_e('Forgotten Timer Check', 'bbab-service-center'); ?>
-                    </th>
-                    <td>
-                        <p style="margin-bottom: 10px;">
-                            <?php esc_html_e('Manually run the forgotten timer check (normally runs every 30 minutes).', 'bbab-service-center'); ?>
-                        </p>
-
-                        <button type="button"
-                                id="bbab-check-forgotten-timers"
-                                class="button button-secondary">
-                            <?php esc_html_e('Check for Forgotten Timers', 'bbab-service-center'); ?>
-                        </button>
-                        <span id="bbab-forgotten-timer-status" style="margin-left: 10px;"></span>
-
-                        <p class="description" style="margin-top: 8px;">
-                            <?php esc_html_e('Checks for timers running 4+ hours and sends an alert email if any are found.', 'bbab-service-center'); ?>
+                        <input type="text"
+                               id="service_center_name"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[service_center_name]"
+                               value="<?php echo esc_attr($settings['service_center_name'] ?? 'Service Center'); ?>"
+                               class="regular-text">
+                        <p class="description">
+                            <?php esc_html_e('The name displayed in the admin menu for the client portal (default: "Service Center").', 'bbab-service-center'); ?>
                         </p>
                     </td>
                 </tr>
             </table>
-
-            <script>
-            jQuery(document).ready(function($) {
-                $('#bbab-backfill-te-refs').on('click', function() {
-                    var $btn = $(this);
-                    var $status = $('#bbab-backfill-status');
-
-                    if (!confirm('This will assign reference numbers to all time entries without one. Continue?')) {
-                        return;
-                    }
-
-                    $btn.prop('disabled', true);
-                    $status.html('<span style="color: #666;">Processing...</span>');
-
-                    $.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'bbab_sc_backfill_te_refs',
-                            nonce: '<?php echo wp_create_nonce('bbab_sc_backfill_te_refs'); ?>'
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                $status.html('<span style="color: #1e8449; font-weight: 500;">' + response.data.message + '</span>');
-                                // Keep button disabled since work is done
-                                if (response.data.processed > 0) {
-                                    setTimeout(function() {
-                                        location.reload();
-                                    }, 2000);
-                                }
-                            } else {
-                                $status.html('<span style="color: #b32d2e;">Error: ' + response.data.message + '</span>');
-                                $btn.prop('disabled', false);
-                            }
-                        },
-                        error: function() {
-                            $status.html('<span style="color: #b32d2e;">Request failed. Check console for details.</span>');
-                            $btn.prop('disabled', false);
-                        }
-                    });
-                });
-
-                // Cleanup orphaned te_reference values
-                $('#bbab-cleanup-te-refs').on('click', function() {
-                    var $btn = $(this);
-                    var $status = $('#bbab-cleanup-status');
-
-                    if (!confirm('This will delete orphaned te_reference meta values. Continue?')) {
-                        return;
-                    }
-
-                    $btn.prop('disabled', true);
-                    $status.html('<span style="color: #666;">Cleaning up...</span>');
-
-                    $.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'bbab_sc_cleanup_te_refs',
-                            nonce: '<?php echo wp_create_nonce('bbab_sc_cleanup_te_refs'); ?>'
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                $status.html('<span style="color: #1e8449; font-weight: 500;">' + response.data.message + '</span>');
-                                if (response.data.deleted > 0) {
-                                    setTimeout(function() {
-                                        location.reload();
-                                    }, 2000);
-                                }
-                            } else {
-                                $status.html('<span style="color: #b32d2e;">Error: ' + response.data.message + '</span>');
-                                $btn.prop('disabled', false);
-                            }
-                        },
-                        error: function() {
-                            $status.html('<span style="color: #b32d2e;">Request failed. Check console for details.</span>');
-                            $btn.prop('disabled', false);
-                        }
-                    });
-                });
-
-                // Check for forgotten timers
-                $('#bbab-check-forgotten-timers').on('click', function() {
-                    var $btn = $(this);
-                    var $status = $('#bbab-forgotten-timer-status');
-
-                    $btn.prop('disabled', true);
-                    $status.html('<span style="color: #666;">Checking...</span>');
-
-                    $.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: {
-                            action: 'bbab_sc_check_forgotten_timers',
-                            nonce: '<?php echo wp_create_nonce('bbab_sc_check_forgotten_timers'); ?>'
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                var color = response.data.count > 0 ? '#b32d2e' : '#1e8449';
-                                $status.html('<span style="color: ' + color + '; font-weight: 500;">' + response.data.message + '</span>');
-                            } else {
-                                $status.html('<span style="color: #b32d2e;">Error: ' + response.data + '</span>');
-                            }
-                            $btn.prop('disabled', false);
-                        },
-                        error: function() {
-                            $status.html('<span style="color: #b32d2e;">Request failed. Check console for details.</span>');
-                            $btn.prop('disabled', false);
-                        }
-                    });
-                });
-            });
-            </script>
-
-            <hr style="margin-top: 40px;">
 
             <h2><?php esc_html_e('Current Configuration', 'bbab-service-center'); ?></h2>
             <p class="description"><?php esc_html_e('Quick reference for debugging. These values are read from the database.', 'bbab-service-center'); ?></p>
@@ -779,6 +276,10 @@ class SettingsPage {
                     </tr>
                 </thead>
                 <tbody>
+                    <tr>
+                        <td><code>service_center_name</code></td>
+                        <td><?php echo esc_html($settings['service_center_name'] ?? 'Service Center'); ?></td>
+                    </tr>
                     <tr>
                         <td><code>sr_form_id</code></td>
                         <td><?php echo esc_html($settings['sr_form_id'] ?: '(not set)'); ?></td>
@@ -793,11 +294,11 @@ class SettingsPage {
                     </tr>
                     <tr>
                         <td><code>debug_mode</code></td>
-                        <td><?php echo $settings['debug_mode'] ? 'true' : 'false'; ?></td>
+                        <td><?php echo ($settings['debug_mode'] ?? false) ? 'true' : 'false'; ?></td>
                     </tr>
                     <tr>
                         <td><code>simulation_enabled</code></td>
-                        <td><?php echo $settings['simulation_enabled'] ? 'true' : 'false'; ?></td>
+                        <td><?php echo ($settings['simulation_enabled'] ?? false) ? 'true' : 'false'; ?></td>
                     </tr>
                     <tr>
                         <td><code>zelle_email</code></td>
@@ -812,10 +313,6 @@ class SettingsPage {
                         <td><?php echo esc_html($settings['hourly_rate'] ?? '30'); ?></td>
                     </tr>
                     <tr>
-                        <td><code>pdf_logo_url</code></td>
-                        <td><?php echo esc_html($settings['pdf_logo_url'] ?: '(default)'); ?></td>
-                    </tr>
-                    <tr>
                         <td><code>stripe_test_mode</code></td>
                         <td><?php echo ($settings['stripe_test_mode'] ?? true) ? 'true (using test keys)' : 'false (LIVE!)'; ?></td>
                     </tr>
@@ -825,7 +322,606 @@ class SettingsPage {
                     </tr>
                 </tbody>
             </table>
-        </div>
+
+            <?php submit_button(__('Save Settings', 'bbab-service-center')); ?>
+        </form>
+        <?php
+    }
+
+    /**
+     * Render Service Requests tab.
+     *
+     * @param array $settings Current settings.
+     */
+    private function renderServiceRequestsTab(array $settings): void {
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields(self::OPTION_GROUP); ?>
+            <input type="hidden" name="<?php echo esc_attr(self::OPTION_NAME); ?>[_tab]" value="service-requests">
+
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">
+                        <label for="sr_form_id"><?php esc_html_e('WPForms Form ID', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="number"
+                               id="sr_form_id"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[sr_form_id]"
+                               value="<?php echo esc_attr($settings['sr_form_id'] ?? ''); ?>"
+                               class="small-text"
+                               min="0">
+                        <p class="description">
+                            <?php esc_html_e('The WPForms form ID for Service Request submissions. Find this in WPForms > All Forms.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="sr_notification_email"><?php esc_html_e('Notification Email', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="email"
+                               id="sr_notification_email"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[sr_notification_email]"
+                               value="<?php echo esc_attr($settings['sr_notification_email'] ?? ''); ?>"
+                               class="regular-text">
+                        <p class="description">
+                            <?php esc_html_e('Email address to receive new Service Request notifications.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="sr_notification_subject"><?php esc_html_e('Email Subject', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text"
+                               id="sr_notification_subject"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[sr_notification_subject]"
+                               value="<?php echo esc_attr($settings['sr_notification_subject'] ?? ''); ?>"
+                               class="large-text">
+                        <p class="description">
+                            <?php esc_html_e('Placeholders: {ref}, {org_name}, {user_name}, {type}, {subject}', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="sr_notification_body"><?php esc_html_e('Email Body', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <?php
+                        wp_editor(
+                            $settings['sr_notification_body'] ?? '',
+                            'sr_notification_body',
+                            [
+                                'textarea_name' => self::OPTION_NAME . '[sr_notification_body]',
+                                'textarea_rows' => 15,
+                                'media_buttons' => false,
+                                'teeny' => false,
+                                'quicktags' => true,
+                            ]
+                        );
+                        ?>
+                        <p class="description" style="margin-top: 10px;">
+                            <?php esc_html_e('Placeholders you can use:', 'bbab-service-center'); ?><br>
+                            <code>{ref}</code> - Reference number (e.g., SR-0042)<br>
+                            <code>{org_name}</code> - Client organization name<br>
+                            <code>{user_name}</code> - Submitter's display name<br>
+                            <code>{user_email}</code> - Submitter's email<br>
+                            <code>{type}</code> - Request type (Support, Feature Request, etc.)<br>
+                            <code>{subject}</code> - Request subject line<br>
+                            <code>{description}</code> - Full request description<br>
+                            <code>{admin_link}</code> - Link to edit the SR in admin<br>
+                            <code>{attachments_note}</code> - Shows "Attachments: Yes" if files attached
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <?php submit_button(__('Save Settings', 'bbab-service-center')); ?>
+        </form>
+        <?php
+    }
+
+    /**
+     * Render Time Tracking tab.
+     *
+     * @param array $settings Current settings.
+     */
+    private function renderTimeTrackingTab(array $settings): void {
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields(self::OPTION_GROUP); ?>
+            <input type="hidden" name="<?php echo esc_attr(self::OPTION_NAME); ?>[_tab]" value="time-tracking">
+
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">
+                        <label for="forgotten_timer_email"><?php esc_html_e('Forgotten Timer Email', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="email"
+                               id="forgotten_timer_email"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[forgotten_timer_email]"
+                               value="<?php echo esc_attr($settings['forgotten_timer_email'] ?? ''); ?>"
+                               class="regular-text">
+                        <p class="description">
+                            <?php esc_html_e('Email address to receive alerts when a timer has been running 4+ hours.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <?php submit_button(__('Save Settings', 'bbab-service-center')); ?>
+        </form>
+        <?php
+    }
+
+    /**
+     * Render Billing tab.
+     *
+     * @param array $settings Current settings.
+     */
+    private function renderBillingTab(array $settings): void {
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields(self::OPTION_GROUP); ?>
+            <input type="hidden" name="<?php echo esc_attr(self::OPTION_NAME); ?>[_tab]" value="billing">
+
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">
+                        <label for="zelle_email"><?php esc_html_e('Zelle Email', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="email"
+                               id="zelle_email"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[zelle_email]"
+                               value="<?php echo esc_attr($settings['zelle_email'] ?? 'wales108@gmail.com'); ?>"
+                               class="regular-text">
+                        <p class="description">
+                            <?php esc_html_e('Email address displayed on invoices for Zelle payments.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="cc_fee_percentage"><?php esc_html_e('Credit Card Fee %', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="number"
+                               id="cc_fee_percentage"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[cc_fee_percentage]"
+                               value="<?php echo esc_attr($settings['cc_fee_percentage'] ?? 0.03); ?>"
+                               class="small-text"
+                               step="0.001"
+                               min="0"
+                               max="1">
+                        <p class="description">
+                            <?php esc_html_e('Credit card processing fee as decimal (e.g., 0.03 = 3%). Applied to card payments.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="hourly_rate"><?php esc_html_e('Default Hourly Rate', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="number"
+                               id="hourly_rate"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[hourly_rate]"
+                               value="<?php echo esc_attr($settings['hourly_rate'] ?? 30); ?>"
+                               class="small-text"
+                               step="0.01"
+                               min="0">
+                        <p class="description">
+                            <?php esc_html_e('Default hourly rate for support/overage billing (per hour).', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="pdf_logo_url"><?php esc_html_e('PDF Logo URL', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="url"
+                               id="pdf_logo_url"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[pdf_logo_url]"
+                               value="<?php echo esc_attr($settings['pdf_logo_url'] ?? ''); ?>"
+                               class="large-text">
+                        <p class="description">
+                            <?php esc_html_e('Full URL to logo image for invoice PDFs. Leave blank for default.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <?php submit_button(__('Save Settings', 'bbab-service-center')); ?>
+        </form>
+        <?php
+    }
+
+    /**
+     * Render Stripe tab.
+     *
+     * @param array $settings Current settings.
+     */
+    private function renderStripeTab(array $settings): void {
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields(self::OPTION_GROUP); ?>
+            <input type="hidden" name="<?php echo esc_attr(self::OPTION_NAME); ?>[_tab]" value="stripe">
+
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">
+                        <?php esc_html_e('Test Mode', 'bbab-service-center'); ?>
+                    </th>
+                    <td>
+                        <label>
+                            <input type="checkbox"
+                                   name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_test_mode]"
+                                   value="1"
+                                   <?php checked($settings['stripe_test_mode'] ?? true); ?>>
+                            <?php esc_html_e('Use Stripe Test Mode (recommended during development)', 'bbab-service-center'); ?>
+                        </label>
+                        <p class="description">
+                            <?php esc_html_e('When enabled, uses test API keys. Uncheck for live payments.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="stripe_test_publishable_key"><?php esc_html_e('Test Publishable Key', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text"
+                               id="stripe_test_publishable_key"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_test_publishable_key]"
+                               value="<?php echo esc_attr($settings['stripe_test_publishable_key'] ?? ''); ?>"
+                               class="large-text"
+                               placeholder="pk_test_...">
+                        <p class="description">
+                            <?php esc_html_e('Starts with pk_test_', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="stripe_test_secret_key"><?php esc_html_e('Test Secret Key', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <?php
+                        $test_secret = $settings['stripe_test_secret_key'] ?? '';
+                        $test_secret_masked = !empty($test_secret) ? substr($test_secret, 0, 12) . '...' . substr($test_secret, -4) : '';
+                        ?>
+                        <input type="password"
+                               id="stripe_test_secret_key"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_test_secret_key]"
+                               value="<?php echo esc_attr($test_secret); ?>"
+                               class="large-text"
+                               placeholder="sk_test_..."
+                               autocomplete="off">
+                        <?php if (!empty($test_secret_masked)): ?>
+                            <p class="description" style="color: #1e8449;">
+                                <?php echo esc_html('Currently set: ' . $test_secret_masked); ?>
+                            </p>
+                        <?php else: ?>
+                            <p class="description">
+                                <?php esc_html_e('Starts with sk_test_ - Keep this secret!', 'bbab-service-center'); ?>
+                            </p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="stripe_live_publishable_key"><?php esc_html_e('Live Publishable Key', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text"
+                               id="stripe_live_publishable_key"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_live_publishable_key]"
+                               value="<?php echo esc_attr($settings['stripe_live_publishable_key'] ?? ''); ?>"
+                               class="large-text"
+                               placeholder="pk_live_...">
+                        <p class="description">
+                            <?php esc_html_e('Starts with pk_live_ - For production use', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="stripe_live_secret_key"><?php esc_html_e('Live Secret Key', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <?php
+                        $live_secret = $settings['stripe_live_secret_key'] ?? '';
+                        $live_secret_masked = !empty($live_secret) ? substr($live_secret, 0, 12) . '...' . substr($live_secret, -4) : '';
+                        ?>
+                        <input type="password"
+                               id="stripe_live_secret_key"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_live_secret_key]"
+                               value="<?php echo esc_attr($live_secret); ?>"
+                               class="large-text"
+                               placeholder="sk_live_..."
+                               autocomplete="off">
+                        <?php if (!empty($live_secret_masked)): ?>
+                            <p class="description" style="color: #1e8449;">
+                                <?php echo esc_html('Currently set: ' . $live_secret_masked); ?>
+                            </p>
+                        <?php else: ?>
+                            <p class="description">
+                                <?php esc_html_e('Starts with sk_live_ - Keep this secret!', 'bbab-service-center'); ?>
+                            </p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <label for="stripe_webhook_secret"><?php esc_html_e('Webhook Signing Secret', 'bbab-service-center'); ?></label>
+                    </th>
+                    <td>
+                        <?php
+                        $webhook_secret = $settings['stripe_webhook_secret'] ?? '';
+                        $webhook_masked = !empty($webhook_secret) ? substr($webhook_secret, 0, 12) . '...' . substr($webhook_secret, -4) : '';
+                        ?>
+                        <input type="password"
+                               id="stripe_webhook_secret"
+                               name="<?php echo esc_attr(self::OPTION_NAME); ?>[stripe_webhook_secret]"
+                               value="<?php echo esc_attr($webhook_secret); ?>"
+                               class="large-text"
+                               placeholder="whsec_..."
+                               autocomplete="off">
+                        <?php if (!empty($webhook_masked)): ?>
+                            <p class="description" style="color: #1e8449;">
+                                <?php echo esc_html('Currently set: ' . $webhook_masked); ?>
+                            </p>
+                        <?php else: ?>
+                            <p class="description">
+                                <?php esc_html_e('Starts with whsec_ - Get this from Stripe Webhooks settings', 'bbab-service-center'); ?>
+                            </p>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row">
+                        <?php esc_html_e('Webhook Endpoint', 'bbab-service-center'); ?>
+                    </th>
+                    <td>
+                        <code style="display: block; padding: 8px 12px; background: #f0f0f1; border-radius: 4px;">
+                            <?php echo esc_url(rest_url('bbab/v1/stripe-webhook')); ?>
+                        </code>
+                        <p class="description" style="margin-top: 8px;">
+                            <?php esc_html_e('Add this URL in your Stripe Dashboard > Developers > Webhooks. Enable checkout.session.completed and payment_intent.succeeded events.', 'bbab-service-center'); ?>
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <?php submit_button(__('Save Settings', 'bbab-service-center')); ?>
+        </form>
+        <?php
+    }
+
+    /**
+     * Render Maintenance tab.
+     *
+     * @param array $settings Current settings.
+     */
+    private function renderMaintenanceTab(array $settings): void {
+        ?>
+        <p class="description"><?php esc_html_e('One-time maintenance tasks for data migrations and cleanup.', 'bbab-service-center'); ?></p>
+
+        <table class="form-table" role="presentation">
+            <tr>
+                <th scope="row">
+                    <?php esc_html_e('Time Entry References', 'bbab-service-center'); ?>
+                </th>
+                <td>
+                    <?php
+                    $te_count = TEReferenceGenerator::getCountWithoutReference();
+                    ?>
+                    <p style="margin-bottom: 10px;">
+                        <?php if ($te_count > 0): ?>
+                            <span style="color: #b32d2e; font-weight: 500;">
+                                <?php echo esc_html(sprintf('%d time entries need reference numbers.', $te_count)); ?>
+                            </span>
+                        <?php else: ?>
+                            <span style="color: #1e8449;">
+                                <?php esc_html_e('All time entries have reference numbers.', 'bbab-service-center'); ?>
+                            </span>
+                        <?php endif; ?>
+                    </p>
+
+                    <button type="button"
+                            id="bbab-backfill-te-refs"
+                            class="button button-secondary"
+                            <?php echo $te_count === 0 ? 'disabled' : ''; ?>>
+                        <?php esc_html_e('Backfill TE References', 'bbab-service-center'); ?>
+                    </button>
+                    <span id="bbab-backfill-status" style="margin-left: 10px;"></span>
+
+                    <p class="description" style="margin-top: 8px;">
+                        <?php esc_html_e('Assigns TE-XXXX reference numbers to existing time entries that don\'t have one. Numbers are assigned chronologically (oldest entry gets the lowest number).', 'bbab-service-center'); ?>
+                    </p>
+                </td>
+            </tr>
+
+            <?php
+            $orphaned_count = TEReferenceGenerator::getOrphanedTeReferenceCount();
+            if ($orphaned_count > 0):
+            ?>
+            <tr>
+                <th scope="row">
+                    <?php esc_html_e('Cleanup Orphaned Meta', 'bbab-service-center'); ?>
+                </th>
+                <td>
+                    <p style="margin-bottom: 10px;">
+                        <span style="color: #b32d2e; font-weight: 500;">
+                            <?php echo esc_html(sprintf('%d orphaned te_reference meta values found.', $orphaned_count)); ?>
+                        </span>
+                    </p>
+
+                    <button type="button"
+                            id="bbab-cleanup-te-refs"
+                            class="button button-secondary">
+                        <?php esc_html_e('Delete Orphaned Meta', 'bbab-service-center'); ?>
+                    </button>
+                    <span id="bbab-cleanup-status" style="margin-left: 10px;"></span>
+
+                    <p class="description" style="margin-top: 8px;">
+                        <?php esc_html_e('Removes incorrectly created te_reference meta values. This is safe - these values are not used.', 'bbab-service-center'); ?>
+                    </p>
+                </td>
+            </tr>
+            <?php endif; ?>
+
+            <tr>
+                <th scope="row">
+                    <?php esc_html_e('Forgotten Timer Check', 'bbab-service-center'); ?>
+                </th>
+                <td>
+                    <p style="margin-bottom: 10px;">
+                        <?php esc_html_e('Manually run the forgotten timer check (normally runs every 30 minutes).', 'bbab-service-center'); ?>
+                    </p>
+
+                    <button type="button"
+                            id="bbab-check-forgotten-timers"
+                            class="button button-secondary">
+                        <?php esc_html_e('Check for Forgotten Timers', 'bbab-service-center'); ?>
+                    </button>
+                    <span id="bbab-forgotten-timer-status" style="margin-left: 10px;"></span>
+
+                    <p class="description" style="margin-top: 8px;">
+                        <?php esc_html_e('Checks for timers running 4+ hours and sends an alert email if any are found.', 'bbab-service-center'); ?>
+                    </p>
+                </td>
+            </tr>
+        </table>
+
+        <script>
+        jQuery(document).ready(function($) {
+            $('#bbab-backfill-te-refs').on('click', function() {
+                var $btn = $(this);
+                var $status = $('#bbab-backfill-status');
+
+                if (!confirm('This will assign reference numbers to all time entries without one. Continue?')) {
+                    return;
+                }
+
+                $btn.prop('disabled', true);
+                $status.html('<span style="color: #666;">Processing...</span>');
+
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'bbab_sc_backfill_te_refs',
+                        nonce: '<?php echo wp_create_nonce('bbab_sc_backfill_te_refs'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $status.html('<span style="color: #1e8449; font-weight: 500;">' + response.data.message + '</span>');
+                            if (response.data.processed > 0) {
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 2000);
+                            }
+                        } else {
+                            $status.html('<span style="color: #b32d2e;">Error: ' + response.data.message + '</span>');
+                            $btn.prop('disabled', false);
+                        }
+                    },
+                    error: function() {
+                        $status.html('<span style="color: #b32d2e;">Request failed. Check console for details.</span>');
+                        $btn.prop('disabled', false);
+                    }
+                });
+            });
+
+            $('#bbab-cleanup-te-refs').on('click', function() {
+                var $btn = $(this);
+                var $status = $('#bbab-cleanup-status');
+
+                if (!confirm('This will delete orphaned te_reference meta values. Continue?')) {
+                    return;
+                }
+
+                $btn.prop('disabled', true);
+                $status.html('<span style="color: #666;">Cleaning up...</span>');
+
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'bbab_sc_cleanup_te_refs',
+                        nonce: '<?php echo wp_create_nonce('bbab_sc_cleanup_te_refs'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $status.html('<span style="color: #1e8449; font-weight: 500;">' + response.data.message + '</span>');
+                            if (response.data.deleted > 0) {
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 2000);
+                            }
+                        } else {
+                            $status.html('<span style="color: #b32d2e;">Error: ' + response.data.message + '</span>');
+                            $btn.prop('disabled', false);
+                        }
+                    },
+                    error: function() {
+                        $status.html('<span style="color: #b32d2e;">Request failed. Check console for details.</span>');
+                        $btn.prop('disabled', false);
+                    }
+                });
+            });
+
+            $('#bbab-check-forgotten-timers').on('click', function() {
+                var $btn = $(this);
+                var $status = $('#bbab-forgotten-timer-status');
+
+                $btn.prop('disabled', true);
+                $status.html('<span style="color: #666;">Checking...</span>');
+
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: {
+                        action: 'bbab_sc_check_forgotten_timers',
+                        nonce: '<?php echo wp_create_nonce('bbab_sc_check_forgotten_timers'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            var color = response.data.count > 0 ? '#b32d2e' : '#1e8449';
+                            $status.html('<span style="color: ' + color + '; font-weight: 500;">' + response.data.message + '</span>');
+                        } else {
+                            $status.html('<span style="color: #b32d2e;">Error: ' + response.data + '</span>');
+                        }
+                        $btn.prop('disabled', false);
+                    },
+                    error: function() {
+                        $status.html('<span style="color: #b32d2e;">Request failed. Check console for details.</span>');
+                        $btn.prop('disabled', false);
+                    }
+                });
+            });
+        });
+        </script>
         <?php
     }
 

@@ -30,6 +30,7 @@ class ClientPortalMenu {
         'service_request',
         'project',
         'milestone',
+        'project_report',
         'kb_article',
         'roadmap_item',
     ];
@@ -129,6 +130,7 @@ class ClientPortalMenu {
         // Projects
         add_submenu_page('bbab-portal-admin', 'Projects', 'Projects', 'manage_options', 'edit.php?post_type=project');
         add_submenu_page('bbab-portal-admin', 'Milestones', 'Milestones', 'manage_options', 'edit.php?post_type=milestone');
+        add_submenu_page('bbab-portal-admin', 'Project Reports', 'Project Reports', 'manage_options', 'edit.php?post_type=project_report');
 
         // Strategy & Roadmap
         add_submenu_page('bbab-portal-admin', 'Roadmap Items', 'Roadmap Items', 'manage_options', 'edit.php?post_type=roadmap_item');
@@ -247,6 +249,7 @@ class ClientPortalMenu {
                 <div class="bbab-admin-cards">
                     <?php $this->renderCPTCard('project', 'Projects', 'Client projects'); ?>
                     <?php $this->renderCPTCard('milestone', 'Milestones', 'Project deliverables'); ?>
+                    <?php $this->renderCPTCard('project_report', 'Project Reports', 'Summaries & handoffs'); ?>
                 </div>
             </div>
 
