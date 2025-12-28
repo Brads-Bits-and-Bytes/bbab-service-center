@@ -31,12 +31,36 @@ class Overview extends BaseShortcode {
         $current_user = wp_get_current_user();
         $first_name = $current_user->first_name ?: $current_user->display_name;
 
+        // Get org logo
+        $logo_html = '';
+        if ($org) {
+            $logo_id = get_post_meta($org->ID, 'org_logo', true);
+            if (!empty($logo_id)) {
+                if (is_numeric($logo_id)) {
+                    $logo_url = wp_get_attachment_image_url((int) $logo_id, 'medium');
+                } else {
+                    $logo_url = $logo_id;
+                }
+
+                if ($logo_url) {
+                    $logo_html = '<img src="' . esc_url($logo_url) . '" alt="' . esc_attr($org_name) . '" class="bbab-org-logo">';
+                }
+            }
+        }
+
         ob_start();
         ?>
         <div class="bbab-overview-section">
-            <div class="bbab-overview-welcome">
-                <h2>Welcome back, <?php echo esc_html($first_name); ?>!</h2>
-                <p class="bbab-org-name"><?php echo esc_html($org_name); ?></p>
+            <div class="bbab-overview-header">
+                <div class="bbab-overview-welcome">
+                    <h2>Welcome back, <?php echo esc_html($first_name); ?>!</h2>
+                    <p class="bbab-org-name"><?php echo esc_html($org_name); ?></p>
+                </div>
+                <?php if (!empty($logo_html)): ?>
+                    <div class="bbab-overview-logo">
+                        <?php echo $logo_html; ?>
+                    </div>
+                <?php endif; ?>
             </div>
 
             <div class="bbab-stats-grid">
@@ -97,8 +121,16 @@ class Overview extends BaseShortcode {
                 margin-bottom: 24px;
             }
 
-            .bbab-overview-welcome {
+            .bbab-overview-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
                 margin-bottom: 24px;
+                gap: 20px;
+            }
+
+            .bbab-overview-welcome {
+                flex: 1;
             }
 
             .bbab-overview-welcome h2 {
@@ -114,6 +146,28 @@ class Overview extends BaseShortcode {
                 font-size: 16px;
                 color: #324A6D;
                 margin: 0;
+            }
+
+            .bbab-overview-logo {
+                flex-shrink: 0;
+            }
+
+            .bbab-org-logo {
+                max-height: 60px;
+                width: auto;
+                object-fit: contain;
+            }
+
+            @media (max-width: 600px) {
+                .bbab-overview-header {
+                    flex-direction: column-reverse;
+                    align-items: flex-start;
+                }
+
+                .bbab-overview-logo {
+                    align-self: flex-end;
+                    margin-bottom: 10px;
+                }
             }
 
             .bbab-stats-grid {

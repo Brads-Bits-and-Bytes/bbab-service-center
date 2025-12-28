@@ -6,6 +6,7 @@ namespace BBAB\ServiceCenter\Admin;
 use BBAB\ServiceCenter\Admin\Workbench\WorkbenchPage;
 use BBAB\ServiceCenter\Admin\Pages\ClientHealthDashboard;
 use BBAB\ServiceCenter\Admin\Pages\SettingsPage;
+use BBAB\ServiceCenter\Admin\ClientPortalMenu;
 use BBAB\ServiceCenter\Admin\Columns\ServiceRequestColumns;
 use BBAB\ServiceCenter\Admin\Columns\TimeEntryColumns;
 use BBAB\ServiceCenter\Admin\Columns\ProjectMilestoneRefColumns;
@@ -13,8 +14,15 @@ use BBAB\ServiceCenter\Admin\Columns\ProjectColumns;
 use BBAB\ServiceCenter\Admin\Columns\MilestoneColumns;
 use BBAB\ServiceCenter\Admin\Columns\InvoiceColumns;
 use BBAB\ServiceCenter\Admin\Columns\LineItemColumns;
+use BBAB\ServiceCenter\Admin\Columns\ProjectReportColumns;
+use BBAB\ServiceCenter\Admin\Columns\KBColumns;
+use BBAB\ServiceCenter\Admin\Columns\RoadmapColumns;
+use BBAB\ServiceCenter\Admin\Columns\OrganizationColumns;
+use BBAB\ServiceCenter\Admin\Columns\ClientTaskColumns;
 use BBAB\ServiceCenter\Admin\RowActions\LogTimeAction;
+use BBAB\ServiceCenter\Admin\RowActions\RoadmapActions;
 use BBAB\ServiceCenter\Admin\RowActions\MonthlyReportActions;
+use BBAB\ServiceCenter\Admin\RowActions\ClientTaskActions;
 use BBAB\ServiceCenter\Admin\Metaboxes\ServiceRequestMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\TimerMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\TimeEntryReassignMetabox;
@@ -22,7 +30,10 @@ use BBAB\ServiceCenter\Admin\Metaboxes\ProjectMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\MilestoneMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\InvoiceMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\LineItemMetabox;
+use BBAB\ServiceCenter\Admin\Metaboxes\ProjectReportMetabox;
+use BBAB\ServiceCenter\Admin\Metaboxes\MonthlyReportMetabox;
 use BBAB\ServiceCenter\Admin\GlobalTimerIndicator;
+use BBAB\ServiceCenter\Admin\ProjectReportFieldFilter;
 use BBAB\ServiceCenter\Admin\LineItemLinker;
 use BBAB\ServiceCenter\Modules\TimeTracking\TimeEntryService;
 use BBAB\ServiceCenter\Modules\TimeTracking\TimerService;
@@ -32,6 +43,8 @@ use BBAB\ServiceCenter\Modules\ServiceRequests\FormProcessor;
 use BBAB\ServiceCenter\Modules\Projects\ProjectReferenceGenerator;
 use BBAB\ServiceCenter\Modules\Projects\MilestoneReferenceGenerator;
 use BBAB\ServiceCenter\Modules\Projects\TitleSync;
+use BBAB\ServiceCenter\Modules\Projects\ProjectReportReferenceGenerator;
+use BBAB\ServiceCenter\Modules\Projects\ProjectReportTitleSync;
 use BBAB\ServiceCenter\Modules\Billing\InvoiceReferenceGenerator;
 use BBAB\ServiceCenter\Modules\Billing\InvoiceTitleSync;
 use BBAB\ServiceCenter\Modules\Billing\InvoiceGenerator;
@@ -64,6 +77,11 @@ class AdminLoader {
     private SettingsPage $settings_page;
 
     /**
+     * Client Portal Menu instance.
+     */
+    private ?ClientPortalMenu $portal_menu = null;
+
+    /**
      * Register all admin hooks.
      */
     public function register(): void {
@@ -78,6 +96,10 @@ class AdminLoader {
         // Initialize Settings Page
         $this->settings_page = new SettingsPage();
         $this->settings_page->register();
+
+        // Initialize Client Portal Menu (consolidates all CPT menus) - Phase 7.2
+        $this->portal_menu = new ClientPortalMenu();
+        $this->portal_menu->register();
 
         // Initialize Time Entry Linker (pre-populates from SR/Project links)
         $time_entry_linker = new TimeEntryLinker();
@@ -105,6 +127,10 @@ class AdminLoader {
         MilestoneReferenceGenerator::register();
         TitleSync::register();
 
+        // Initialize Project Report services (Phase 7.3)
+        ProjectReportReferenceGenerator::register();
+        ProjectReportTitleSync::register();
+
         // Initialize Invoice/Billing services (Phase 5.3)
         InvoiceReferenceGenerator::register();
         InvoiceTitleSync::register();
@@ -127,6 +153,21 @@ class AdminLoader {
         // Initialize Line Item columns (Phase 6.1)
         LineItemColumns::register();
 
+        // Initialize Project Report columns (Phase 7.3)
+        ProjectReportColumns::register();
+
+        // Initialize KB Article columns (Phase 7.4)
+        KBColumns::register();
+
+        // Initialize Roadmap columns and filters (Phase 7.5)
+        RoadmapColumns::register();
+
+        // Initialize Client Organization columns (Phase 7.7)
+        OrganizationColumns::register();
+
+        // Initialize Client Task columns and filters (Phase 7.7)
+        ClientTaskColumns::register();
+
         // Initialize Project/Milestone reference metaboxes (Phase 5.1)
         ProjectMilestoneRefColumns::register();
 
@@ -135,6 +176,12 @@ class AdminLoader {
 
         // Initialize Monthly Report row actions (Phase 6.1)
         MonthlyReportActions::register();
+
+        // Initialize Roadmap row actions (Phase 7.5)
+        RoadmapActions::register();
+
+        // Initialize Client Task row actions (Phase 7.7)
+        ClientTaskActions::register();
 
         // Initialize metaboxes (Phase 4.3)
         ServiceRequestMetabox::register();
@@ -150,6 +197,15 @@ class AdminLoader {
 
         // Initialize Line Item metaboxes (Phase 5.4)
         LineItemMetabox::register();
+
+        // Initialize Project Report metaboxes (Phase 7.3)
+        ProjectReportMetabox::register();
+
+        // Initialize Monthly Report metaboxes (Phase 7.6)
+        MonthlyReportMetabox::register();
+
+        // Initialize Project Report field filtering (Phase 7.3)
+        ProjectReportFieldFilter::register();
 
         // Initialize global timer indicator (Phase 4.3)
         GlobalTimerIndicator::register();

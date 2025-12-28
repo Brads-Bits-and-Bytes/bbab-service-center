@@ -11,6 +11,9 @@ use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\Billing;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\ActiveProjects;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\ServiceRequests;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\Roadmap;
+use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\HoursProgressBar;
+use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\UserInfo;
+use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\SupportButton;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Analytics\ClientAnalytics;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Hosting\HostingHealth;
 use BBAB\ServiceCenter\Frontend\Shortcodes\ServiceRequests\Archive as SRArchive;
@@ -36,6 +39,11 @@ use BBAB\ServiceCenter\Frontend\Shortcodes\Billing\SupportHistory;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Billing\InvoiceArchive;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Billing\InvoiceDetail;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\ProjectPayments;
+use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\KBLink;
+use BBAB\ServiceCenter\Frontend\Shortcodes\KnowledgeBase\KBArchive;
+use BBAB\ServiceCenter\Modules\KnowledgeBase\TaxonomyHandler;
+use BBAB\ServiceCenter\Modules\Roadmap\AjaxHandler as RoadmapAjaxHandler;
+use BBAB\ServiceCenter\Modules\Roadmap\FormProcessor as RoadmapFormProcessor;
 use BBAB\ServiceCenter\Utils\Logger;
 
 /**
@@ -74,6 +82,15 @@ class FrontendLoader {
         ProjectArchiveFilter::register();
         MilestoneLoopFilter::register();
 
+        // Register KB taxonomy handler (Phase 7.4)
+        TaxonomyHandler::register();
+
+        // Register Roadmap AJAX handlers (Phase 7.5)
+        RoadmapAjaxHandler::register();
+
+        // Register Roadmap form processor (Phase 7.5)
+        RoadmapFormProcessor::register();
+
         // Register shortcodes
         $this->registerShortcodes();
 
@@ -97,6 +114,9 @@ class FrontendLoader {
             ActiveProjects::class,
             ServiceRequests::class,
             Roadmap::class,
+            HoursProgressBar::class,
+            UserInfo::class,
+            SupportButton::class,
             // Analytics shortcodes
             ClientAnalytics::class,
             // Hosting shortcodes
@@ -129,6 +149,9 @@ class FrontendLoader {
             InvoiceDetail::class,
             // Dashboard Project Payments (Phase 6.2)
             ProjectPayments::class,
+            // Knowledge Base shortcodes (Phase 7.4)
+            KBArchive::class,
+            KBLink::class,
         ];
 
         foreach ($shortcode_classes as $class) {

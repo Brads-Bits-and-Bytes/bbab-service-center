@@ -81,6 +81,97 @@
     $(function() {
         // Initialize any dashboard components here
         console.log('BBAB Service Center frontend loaded');
+
+        // Initialize Roadmap handlers
+        initRoadmapHandlers();
     });
+
+    /**
+     * Initialize Roadmap AJAX handlers
+     * Handles: I'm Interested, Not Right Now, Decline, Approve buttons
+     */
+    function initRoadmapHandlers() {
+        // "I'm Interested" button handler
+        $(document).on('click', '.btn-interested', function() {
+            var $btn = $(this);
+            var $card = $btn.closest('.roadmap-card');
+            var itemId = $btn.data('item-id');
+            var nonce = $btn.data('nonce');
+
+            $btn.prop('disabled', true).text('Sending...');
+
+            $.post(bbabScAjax.url, {
+                action: 'roadmap_interested',
+                item_id: itemId,
+                nonce: nonce
+            }, function(response) {
+                if (response.success) {
+                    $card.html('<p style="padding: 20px; text-align: center; color: #059669;">&#10004; ' + response.data.message + '</p>');
+                    setTimeout(function() { $card.fadeOut(); }, 2000);
+                } else {
+                    alert(response.data.message || 'Something went wrong');
+                    $btn.prop('disabled', false).text("I'm Interested");
+                }
+            }).fail(function() {
+                alert('Something went wrong. Please try again.');
+                $btn.prop('disabled', false).text("I'm Interested");
+            });
+        });
+
+        // "Not Right Now" / "Decline" button handler
+        $(document).on('click', '.btn-not-now, .btn-decline', function() {
+            var $btn = $(this);
+            var $card = $btn.closest('.roadmap-card');
+            var itemId = $btn.data('item-id');
+            var nonce = $btn.data('nonce');
+            var originalText = $btn.text();
+
+            $btn.prop('disabled', true).text('Sending...');
+
+            $.post(bbabScAjax.url, {
+                action: 'roadmap_decline',
+                item_id: itemId,
+                nonce: nonce
+            }, function(response) {
+                if (response.success) {
+                    $card.html('<p style="padding: 20px; text-align: center; color: #666;">&#128077; ' + response.data.message + '</p>');
+                    setTimeout(function() { $card.fadeOut(); }, 2000);
+                } else {
+                    alert(response.data.message || 'Something went wrong');
+                    $btn.prop('disabled', false).text(originalText);
+                }
+            }).fail(function() {
+                alert('Something went wrong. Please try again.');
+                $btn.prop('disabled', false).text(originalText);
+            });
+        });
+
+        // "Approve" button handler
+        $(document).on('click', '.btn-approve', function() {
+            var $btn = $(this);
+            var $card = $btn.closest('.roadmap-card');
+            var itemId = $btn.data('item-id');
+            var nonce = $btn.data('nonce');
+
+            $btn.prop('disabled', true).text('Sending...');
+
+            $.post(bbabScAjax.url, {
+                action: 'roadmap_approve',
+                item_id: itemId,
+                nonce: nonce
+            }, function(response) {
+                if (response.success) {
+                    $card.html('<p style="padding: 20px; text-align: center; color: #059669;">&#127881; ' + response.data.message + '</p>');
+                    setTimeout(function() { $card.fadeOut(); }, 2000);
+                } else {
+                    alert(response.data.message || 'Something went wrong');
+                    $btn.prop('disabled', false).text('Approve');
+                }
+            }).fail(function() {
+                alert('Something went wrong. Please try again.');
+                $btn.prop('disabled', false).text('Approve');
+            });
+        });
+    }
 
 })(jQuery);

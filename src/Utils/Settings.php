@@ -20,14 +20,14 @@ class Settings {
      */
     private const DEFAULTS = [
         // Page IDs - MUST be configured in admin or database
-        'dashboard_page_id' => 0,
+        'dashboard_page_id' => 1019,  // Client Dashboard page
         'login_page_id' => 0,
         'projects_page_id' => 0,
         'service_requests_page_id' => 0,
 
         // Form IDs - MUST be configured in admin or database
         'sr_form_id' => 0,
-        'roadmap_form_id' => 0,
+        'roadmap_form_id' => 1933,
 
         // Pod Names (these are safe to hardcode as they're structural)
         'pod_project' => 'project',
@@ -63,6 +63,9 @@ class Settings {
         // Cookie/Session settings
         'simulation_cookie_name' => 'bbab_sc_sim_org',
         'simulation_cookie_expiry' => 3600, // 1 hour
+
+        // Admin Menu Settings
+        'service_center_name' => 'Service Center', // Display name for admin menu
 
         // Time Tracking Settings
         'forgotten_timer_email' => 'brad@bradsbitsandbytes.com',
