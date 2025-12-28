@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard;
 
 use BBAB\ServiceCenter\Frontend\Shortcodes\BaseShortcode;
+use BBAB\ServiceCenter\Modules\Billing\MonthlyReportService;
 
 /**
  * Dashboard Month Progress shortcode.
@@ -41,11 +42,10 @@ class MonthProgress extends BaseShortcode {
             return '<p>No reports found for your organization yet.</p>';
         }
 
-        // Get report data
+        // Get report data using MonthlyReportService (queries by date range, not meta)
         $report_month = get_post_meta($report_id, 'report_month', true);
-        $total_hours = $this->getReportTotalHours((int) $report_id);
-        $limit = get_post_meta($report_id, 'free_hours_limit', true);
-        $limit = !empty($limit) ? floatval($limit) : 2;
+        $total_hours = MonthlyReportService::getTotalHours((int) $report_id);
+        $limit = MonthlyReportService::getFreeHoursLimit((int) $report_id);
 
         $percentage = ($limit > 0) ? min(($total_hours / $limit) * 100, 100) : 0;
 
@@ -94,6 +94,7 @@ class MonthProgress extends BaseShortcode {
         $output .= '</div>';
         $output .= '<div style="margin-top: 10px; font-family: Poppins, sans-serif; font-size: 16px; color: #1C244B;">' . esc_html($total_hours) . ' / ' . esc_html($limit) . ' Free Hours Used</div>';
         $output .= $overage_html;
+        $output .= '<a href="/support-history/" class="bbab-view-all-link" style="display: block; text-align: center; color: #467FF7; text-decoration: none; margin-top: 12px; font-family: Poppins, sans-serif;">View Support History</a>';
         $output .= '</div>';
 
         // Animation script
@@ -107,40 +108,5 @@ class MonthProgress extends BaseShortcode {
         </script>';
 
         return $output;
-    }
-
-    /**
-     * Get total hours for a monthly report.
-     *
-     * This replaces the global bbab_get_report_total_hours() function.
-     */
-    private function getReportTotalHours(int $report_id): float {
-        // Try to get cached value first
-        $cached = get_post_meta($report_id, 'total_hours', true);
-        if ($cached !== '' && $cached !== false) {
-            return floatval($cached);
-        }
-
-        // Calculate from time entries if not cached
-        $time_entries = get_posts([
-            'post_type' => 'time_entry',
-            'post_status' => 'publish',
-            'posts_per_page' => -1,
-            'meta_query' => [
-                [
-                    'key' => 'related_monthly_report',
-                    'value' => $report_id,
-                    'compare' => '=',
-                ],
-            ],
-        ]);
-
-        $total = 0.0;
-        foreach ($time_entries as $entry) {
-            $hours = get_post_meta($entry->ID, 'hours', true);
-            $total += floatval($hours);
-        }
-
-        return round($total, 2);
     }
 }

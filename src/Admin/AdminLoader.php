@@ -28,6 +28,7 @@ use BBAB\ServiceCenter\Admin\Metaboxes\MilestoneMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\InvoiceMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\LineItemMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\ProjectReportMetabox;
+use BBAB\ServiceCenter\Admin\Metaboxes\MonthlyReportMetabox;
 use BBAB\ServiceCenter\Admin\GlobalTimerIndicator;
 use BBAB\ServiceCenter\Admin\ProjectReportFieldFilter;
 use BBAB\ServiceCenter\Admin\LineItemLinker;
@@ -187,6 +188,9 @@ class AdminLoader {
 
         // Initialize Project Report metaboxes (Phase 7.3)
         ProjectReportMetabox::register();
+
+        // Initialize Monthly Report metaboxes (Phase 7.6)
+        MonthlyReportMetabox::register();
 
         // Initialize Project Report field filtering (Phase 7.3)
         ProjectReportFieldFilter::register();

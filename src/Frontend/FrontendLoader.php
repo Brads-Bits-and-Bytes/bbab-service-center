@@ -11,6 +11,9 @@ use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\Billing;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\ActiveProjects;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\ServiceRequests;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\Roadmap;
+use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\HoursProgressBar;
+use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\UserInfo;
+use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\SupportButton;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Analytics\ClientAnalytics;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Hosting\HostingHealth;
 use BBAB\ServiceCenter\Frontend\Shortcodes\ServiceRequests\Archive as SRArchive;
@@ -111,6 +114,9 @@ class FrontendLoader {
             ActiveProjects::class,
             ServiceRequests::class,
             Roadmap::class,
+            HoursProgressBar::class,
+            UserInfo::class,
+            SupportButton::class,
             // Analytics shortcodes
             ClientAnalytics::class,
             // Hosting shortcodes

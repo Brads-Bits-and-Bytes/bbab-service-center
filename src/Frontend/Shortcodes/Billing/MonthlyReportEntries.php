@@ -48,6 +48,13 @@ class MonthlyReportEntries extends BaseShortcode {
             return '<p>No time entries recorded for this period.</p>';
         }
 
+        // Sort by entry_date descending (most recent first)
+        usort($entries, function($a, $b) {
+            $date_a = get_post_meta($a->ID, 'entry_date', true);
+            $date_b = get_post_meta($b->ID, 'entry_date', true);
+            return strtotime($date_b) - strtotime($date_a);
+        });
+
         // Build the table
         $output = '<table class="bbab-time-entries" style="width:100%; border-collapse: collapse;">';
         $output .= '<thead>';
@@ -62,7 +69,7 @@ class MonthlyReportEntries extends BaseShortcode {
 
         foreach ($entries as $entry) {
             $date = get_post_meta($entry->ID, 'entry_date', true);
-            $description = get_post_meta($entry->ID, 'description', true);
+            $description = $entry->post_title; // Use post title, not description meta
             $hours = get_post_meta($entry->ID, 'hours', true);
             $billable = get_post_meta($entry->ID, 'billable', true);
 
