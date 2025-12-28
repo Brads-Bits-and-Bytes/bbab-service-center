@@ -23,70 +23,79 @@ class Roadmap extends BaseShortcode {
      */
     protected function output(array $atts, int $org_id): string {
         // Get admin user IDs (for distinguishing Brad's ideas from client submissions)
-        $admin_users = get_users(['role' => 'administrator', 'fields' => 'ID']);
+        // Cast to int since get_users returns strings
+        $admin_users = array_map('intval', get_users(['role' => 'administrator', 'fields' => 'ID']));
 
-        // Query: Brad's Ideas for client review (status = Idea, submitted by admin)
-        $brads_ideas = get_posts([
+        // First get ALL Idea status items, then filter in PHP
+        // This avoids complex meta_query issues with Pods-stored vs standard meta
+        $all_ideas = get_posts([
             'post_type' => 'roadmap_item',
             'posts_per_page' => -1,
             'post_status' => 'publish',
             'meta_query' => [
                 'relation' => 'AND',
                 [
-                    'key' => 'organization',
-                    'value' => $org_id,
-                    'compare' => '=',
-                ],
-                [
                     'key' => 'roadmap_status',
                     'value' => 'Idea',
                     'compare' => '=',
-                ],
-                [
-                    'key' => 'submitted_by',
-                    'value' => $admin_users,
-                    'compare' => 'IN',
                 ],
             ],
         ]);
 
-        // Query: Client's submitted ideas (status = Idea, submitted by non-admin)
-        $client_ideas = get_posts([
-            'post_type' => 'roadmap_item',
-            'posts_per_page' => -1,
-            'post_status' => 'publish',
-            'meta_query' => [
-                'relation' => 'AND',
-                [
-                    'key' => 'organization',
-                    'value' => $org_id,
-                    'compare' => '=',
-                ],
-                [
-                    'key' => 'roadmap_status',
-                    'value' => 'Idea',
-                    'compare' => '=',
-                ],
-                [
-                    'key' => 'submitted_by',
-                    'value' => $admin_users,
-                    'compare' => 'NOT IN',
-                ],
-            ],
-        ]);
+        // Filter by organization in PHP (handles both Pods and standard meta)
+        $brads_ideas = [];
+        $client_ideas = [];
+
+        foreach ($all_ideas as $item) {
+            // Get organization - try both Pods and raw meta
+            $item_org = null;
+            if (function_exists('pods')) {
+                $pod = pods('roadmap_item', $item->ID);
+                $org_field = $pod->field('organization');
+                if (is_array($org_field) && !empty($org_field['ID'])) {
+                    $item_org = (int) $org_field['ID'];
+                } elseif (is_numeric($org_field)) {
+                    $item_org = (int) $org_field;
+                }
+            }
+            if (!$item_org) {
+                $item_org = (int) get_post_meta($item->ID, 'organization', true);
+            }
+
+            // Skip if not matching org
+            if ($item_org !== $org_id) {
+                continue;
+            }
+
+            // Get submitted_by
+            $submitted_by = null;
+            if (function_exists('pods')) {
+                $pod = pods('roadmap_item', $item->ID);
+                $user_field = $pod->field('submitted_by');
+                if (is_array($user_field) && !empty($user_field['ID'])) {
+                    $submitted_by = (int) $user_field['ID'];
+                } elseif (is_numeric($user_field)) {
+                    $submitted_by = (int) $user_field;
+                }
+            }
+            if (!$submitted_by) {
+                $submitted_by = (int) get_post_meta($item->ID, 'submitted_by', true);
+            }
+
+            // Categorize: Brad's ideas vs Client ideas
+            if (empty($submitted_by) || in_array($submitted_by, $admin_users)) {
+                $brads_ideas[] = $item;
+            } else {
+                $client_ideas[] = $item;
+            }
+        }
 
         // Query: In Progress items (ADR In Progress or Proposed)
-        $in_progress = get_posts([
+        $all_in_progress = get_posts([
             'post_type' => 'roadmap_item',
             'posts_per_page' => -1,
             'post_status' => 'publish',
             'meta_query' => [
-                'relation' => 'AND',
-                [
-                    'key' => 'organization',
-                    'value' => $org_id,
-                    'compare' => '=',
-                ],
                 [
                     'key' => 'roadmap_status',
                     'value' => ['ADR In Progress', 'Proposed'],
@@ -95,18 +104,17 @@ class Roadmap extends BaseShortcode {
             ],
         ]);
 
+        // Filter in_progress by org
+        $in_progress = array_filter($all_in_progress, function($item) use ($org_id) {
+            return self::getItemOrgId($item->ID) === $org_id;
+        });
+
         // Query: Past requests (Approved or Declined)
-        $past_requests = get_posts([
+        $all_past = get_posts([
             'post_type' => 'roadmap_item',
             'posts_per_page' => -1,
             'post_status' => 'publish',
             'meta_query' => [
-                'relation' => 'AND',
-                [
-                    'key' => 'organization',
-                    'value' => $org_id,
-                    'compare' => '=',
-                ],
                 [
                     'key' => 'roadmap_status',
                     'value' => ['Approved', 'Declined'],
@@ -117,6 +125,11 @@ class Roadmap extends BaseShortcode {
             'meta_key' => 'approved_date',
             'order' => 'DESC',
         ]);
+
+        // Filter past_requests by org
+        $past_requests = array_filter($all_past, function($item) use ($org_id) {
+            return self::getItemOrgId($item->ID) === $org_id;
+        });
 
         ob_start();
         ?>
@@ -471,5 +484,35 @@ class Roadmap extends BaseShortcode {
 
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * Get organization ID for a roadmap item.
+     *
+     * Handles both Pods-stored and standard meta values.
+     *
+     * @param int $item_id Roadmap item ID.
+     * @return int Organization ID or 0 if not found.
+     */
+    private static function getItemOrgId(int $item_id): int {
+        $org_id = null;
+
+        // Try Pods first
+        if (function_exists('pods')) {
+            $pod = pods('roadmap_item', $item_id);
+            $org_field = $pod->field('organization');
+            if (is_array($org_field) && !empty($org_field['ID'])) {
+                $org_id = (int) $org_field['ID'];
+            } elseif (is_numeric($org_field)) {
+                $org_id = (int) $org_field;
+            }
+        }
+
+        // Fallback to raw meta
+        if (!$org_id) {
+            $org_id = (int) get_post_meta($item_id, 'organization', true);
+        }
+
+        return $org_id ?: 0;
     }
 }

@@ -39,6 +39,8 @@ use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\ProjectPayments;
 use BBAB\ServiceCenter\Frontend\Shortcodes\Dashboard\KBLink;
 use BBAB\ServiceCenter\Frontend\Shortcodes\KnowledgeBase\KBArchive;
 use BBAB\ServiceCenter\Modules\KnowledgeBase\TaxonomyHandler;
+use BBAB\ServiceCenter\Modules\Roadmap\AjaxHandler as RoadmapAjaxHandler;
+use BBAB\ServiceCenter\Modules\Roadmap\FormProcessor as RoadmapFormProcessor;
 use BBAB\ServiceCenter\Utils\Logger;
 
 /**
@@ -79,6 +81,12 @@ class FrontendLoader {
 
         // Register KB taxonomy handler (Phase 7.4)
         TaxonomyHandler::register();
+
+        // Register Roadmap AJAX handlers (Phase 7.5)
+        RoadmapAjaxHandler::register();
+
+        // Register Roadmap form processor (Phase 7.5)
+        RoadmapFormProcessor::register();
 
         // Register shortcodes
         $this->registerShortcodes();

@@ -16,7 +16,9 @@ use BBAB\ServiceCenter\Admin\Columns\InvoiceColumns;
 use BBAB\ServiceCenter\Admin\Columns\LineItemColumns;
 use BBAB\ServiceCenter\Admin\Columns\ProjectReportColumns;
 use BBAB\ServiceCenter\Admin\Columns\KBColumns;
+use BBAB\ServiceCenter\Admin\Columns\RoadmapColumns;
 use BBAB\ServiceCenter\Admin\RowActions\LogTimeAction;
+use BBAB\ServiceCenter\Admin\RowActions\RoadmapActions;
 use BBAB\ServiceCenter\Admin\RowActions\MonthlyReportActions;
 use BBAB\ServiceCenter\Admin\Metaboxes\ServiceRequestMetabox;
 use BBAB\ServiceCenter\Admin\Metaboxes\TimerMetabox;
@@ -153,6 +155,9 @@ class AdminLoader {
         // Initialize KB Article columns (Phase 7.4)
         KBColumns::register();
 
+        // Initialize Roadmap columns and filters (Phase 7.5)
+        RoadmapColumns::register();
+
         // Initialize Project/Milestone reference metaboxes (Phase 5.1)
         ProjectMilestoneRefColumns::register();
 
@@ -161,6 +166,9 @@ class AdminLoader {
 
         // Initialize Monthly Report row actions (Phase 6.1)
         MonthlyReportActions::register();
+
+        // Initialize Roadmap row actions (Phase 7.5)
+        RoadmapActions::register();
 
         // Initialize metaboxes (Phase 4.3)
         ServiceRequestMetabox::register();
