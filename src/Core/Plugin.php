@@ -10,6 +10,10 @@ use BBAB\ServiceCenter\Modules\Billing\StripeService;
 use BBAB\ServiceCenter\Modules\Billing\StripeWebhook;
 use BBAB\ServiceCenter\Utils\Cache;
 use BBAB\ServiceCenter\Utils\Logger;
+use BBAB\ServiceCenter\Core\PortalAccessControl;
+use BBAB\ServiceCenter\Core\LoginHandler;
+use BBAB\ServiceCenter\Core\OrgQueryFilter;
+use BBAB\ServiceCenter\Core\CPTAccessControl;
 
 /**
  * Main plugin orchestrator.
@@ -56,6 +60,10 @@ class Plugin {
         // Register AJAX router
         $this->ajax_router->register();
 
+        // Register login redirect handler (runs on all requests for login_redirect filter)
+        $login_handler = new LoginHandler();
+        $login_handler->register();
+
         // Load admin functionality
         if (is_admin()) {
             $this->loadAdmin();
@@ -64,6 +72,7 @@ class Plugin {
         // Load frontend functionality
         if (!is_admin() || wp_doing_ajax()) {
             $this->loadFrontend();
+            $this->loadSecurityControls();
         }
 
         // Load cron handlers (always, for scheduling)
@@ -101,6 +110,28 @@ class Plugin {
     private function loadCron(): void {
         $cron_loader = new CronLoader();
         $cron_loader->register();
+    }
+
+    /**
+     * Load frontend security controls.
+     *
+     * These handle access control for the client portal and CPT pages.
+     * Added in Phase 7.2.
+     */
+    private function loadSecurityControls(): void {
+        // Portal access control (bbab-portal style server-side auth)
+        $portal_access = new PortalAccessControl();
+        $portal_access->register();
+
+        // Organization query filter (filters CPT queries by user org)
+        $org_query_filter = new OrgQueryFilter();
+        $org_query_filter->register();
+
+        // CPT access control (restricts single CPT pages by org)
+        $cpt_access = new CPTAccessControl();
+        $cpt_access->register();
+
+        Logger::debug('Plugin', 'Security controls loaded');
     }
 
     /**

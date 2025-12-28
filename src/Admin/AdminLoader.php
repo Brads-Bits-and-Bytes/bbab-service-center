@@ -6,6 +6,7 @@ namespace BBAB\ServiceCenter\Admin;
 use BBAB\ServiceCenter\Admin\Workbench\WorkbenchPage;
 use BBAB\ServiceCenter\Admin\Pages\ClientHealthDashboard;
 use BBAB\ServiceCenter\Admin\Pages\SettingsPage;
+use BBAB\ServiceCenter\Admin\ClientPortalMenu;
 use BBAB\ServiceCenter\Admin\Columns\ServiceRequestColumns;
 use BBAB\ServiceCenter\Admin\Columns\TimeEntryColumns;
 use BBAB\ServiceCenter\Admin\Columns\ProjectMilestoneRefColumns;
@@ -64,6 +65,11 @@ class AdminLoader {
     private SettingsPage $settings_page;
 
     /**
+     * Client Portal Menu instance.
+     */
+    private ?ClientPortalMenu $portal_menu = null;
+
+    /**
      * Register all admin hooks.
      */
     public function register(): void {
@@ -78,6 +84,10 @@ class AdminLoader {
         // Initialize Settings Page
         $this->settings_page = new SettingsPage();
         $this->settings_page->register();
+
+        // Initialize Client Portal Menu (consolidates all CPT menus) - Phase 7.2
+        $this->portal_menu = new ClientPortalMenu();
+        $this->portal_menu->register();
 
         // Initialize Time Entry Linker (pre-populates from SR/Project links)
         $time_entry_linker = new TimeEntryLinker();
