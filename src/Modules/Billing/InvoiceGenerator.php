@@ -620,13 +620,25 @@ class InvoiceGenerator {
                 ];
                 $total_credits += $invoice_amount;
             } elseif ($invoice_status === 'Partial') {
-                // Credit only what was paid
+                // Void the partial invoice, credit what was paid, include TEs in line items
+                $voided_invoices[] = $invoice_id_existing;
+
                 $credits[] = [
                     'description' => ($ms_ref ?: $ms_name) . ' (Partial payment)',
                     'amount' => $amount_paid,
                     'milestone_id' => $ms_id,
                 ];
                 $total_credits += $amount_paid;
+
+                if ($ms_billable_hours > 0) {
+                    $line_items_data[] = [
+                        'type' => 'Project Milestone',
+                        'description' => $ms_ref ? $ms_ref . ' - ' . $ms_name : $ms_name,
+                        'hours' => $ms_billable_hours,
+                        'amount' => $ms_amount,
+                        'milestone_id' => $ms_id,
+                    ];
+                }
             } elseif (in_array($invoice_status, ['Pending', 'Overdue'], true)) {
                 // Void the invoice and include TEs in line items
                 $voided_invoices[] = $invoice_id_existing;
