@@ -132,7 +132,8 @@ class SettingsPage {
         }
 
         if (isset($input['cc_fee_percentage'])) {
-            $existing['cc_fee_percentage'] = floatval($input['cc_fee_percentage']);
+            // Convert from whole number percentage to decimal (3 -> 0.03)
+            $existing['cc_fee_percentage'] = floatval($input['cc_fee_percentage']) / 100;
         }
 
         if (isset($input['hourly_rate'])) {
@@ -143,8 +144,11 @@ class SettingsPage {
             $existing['pdf_logo_url'] = esc_url_raw($input['pdf_logo_url']);
         }
 
-        // Sanitize Stripe settings
-        $existing['stripe_test_mode'] = isset($input['stripe_test_mode']) && $input['stripe_test_mode'] === '1';
+        // Sanitize Stripe settings (only when saving from Stripe tab)
+        // Checkbox handling: unchecked boxes don't submit, so we only update when on Stripe tab
+        if (isset($input['_tab']) && $input['_tab'] === 'stripe') {
+            $existing['stripe_test_mode'] = isset($input['stripe_test_mode']) && $input['stripe_test_mode'] === '1';
+        }
 
         if (isset($input['stripe_test_publishable_key'])) {
             $existing['stripe_test_publishable_key'] = sanitize_text_field($input['stripe_test_publishable_key']);
@@ -536,16 +540,22 @@ class SettingsPage {
                         <label for="cc_fee_percentage"><?php esc_html_e('Credit Card Fee %', 'bbab-service-center'); ?></label>
                     </th>
                     <td>
+                        <?php
+                        // Display as whole number (convert from decimal: 0.03 -> 3)
+                        $cc_fee_decimal = floatval($settings['cc_fee_percentage'] ?? 0.03);
+                        $cc_fee_display = $cc_fee_decimal * 100;
+                        ?>
                         <input type="number"
                                id="cc_fee_percentage"
                                name="<?php echo esc_attr(self::OPTION_NAME); ?>[cc_fee_percentage]"
-                               value="<?php echo esc_attr($settings['cc_fee_percentage'] ?? 0.03); ?>"
+                               value="<?php echo esc_attr($cc_fee_display); ?>"
                                class="small-text"
-                               step="0.001"
+                               step="0.1"
                                min="0"
-                               max="1">
+                               max="100">
+                        <span>%</span>
                         <p class="description">
-                            <?php esc_html_e('Credit card processing fee as decimal (e.g., 0.03 = 3%). Applied to card payments.', 'bbab-service-center'); ?>
+                            <?php esc_html_e('Credit card processing fee percentage (e.g., 3 for 3%). Applied to card payments.', 'bbab-service-center'); ?>
                         </p>
                     </td>
                 </tr>
